@@ -1,0 +1,28 @@
+# Backend
+/backend/node_modules/
+/backend/.env
+/backend/.env.*
+/backend/config.env
+/backend/logs
+/backend/tmp
+/backend/uploads
+
+# Frontend
+/frontend/node_modules/
+/frontend/dist/
+/frontend/.env
+/frontend/.env.*
+
+# VSCode
+.vscode
+.DS_Store
+
+# OS/Editor junk
+Thumbs.db
+*.log
+
+# Others
+*.zip
+*.tar
+*.rar
+*.7z

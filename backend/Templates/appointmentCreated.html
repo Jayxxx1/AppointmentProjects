@@ -1,0 +1,28 @@
+<table width="100%" cellpadding="0" cellspacing="0" style="font-family:Arial,sans-serif;background:#f7f7f7;padding:24px">
+  <tr>
+    <td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;padding:24px">
+        <tr>
+          <td>
+            <h2 style="margin:0 0 12px;color:#111">การนัดหมายใหม่</h2>
+            <p style="margin:0 0 8px;color:#444"><strong>โปรเจกต์:</strong> {{projectName}}</p>
+            <p style="margin:0 0 8px;color:#444"><strong>หัวข้อ:</strong> {{title}}</p>
+            <p style="margin:0 0 8px;color:#444"><strong>วันที่/เวลา:</strong> {{date}} {{startTime}}-{{endTime}}</p>
+            {{#ifLocation}}<p style="margin:0 0 8px;color:#444"><strong>รูปแบบ:</strong> {{meetingType}}{{locationSuffix}}</p>{{/ifLocation}}
+            {{#ifDescription}}<p style="margin:0 0 16px;color:#444">{{descriptionHtml}}</p>{{/ifDescription}}
+            <a href="{{detailUrl}}"
+               style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px">
+              เปิดดูรายละเอียด
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding-top:24px;color:#888;font-size:12px">
+            หากปุ่มกดไม่ได้ ให้เปิดลิงก์นี้:
+            <a href="{{detailUrl}}" style="color:#2563eb">{{detailUrl}}</a>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
