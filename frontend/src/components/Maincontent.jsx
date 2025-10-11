@@ -228,8 +228,7 @@ export default function MainContent() {
               </div>
             </div>
           </section>
-        </div
-        >
+        </div>
       </div>
     </div>
   );

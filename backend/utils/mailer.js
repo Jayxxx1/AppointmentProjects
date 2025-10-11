@@ -33,16 +33,6 @@ export async function sendEmail({ to, subject, text, html, cc, bcc, attachments 
   const transporter = createTransporter();
   return transporter.sendMail({ from, to, cc, bcc, subject, text, html, attachments });
 
-  const info = await transporter.sendMail({
-    from,
-    to,
-    cc,
-    bcc,
-    subject,
-    text,
-    html,
-    attachments,
-  });
 
   return info;
 }

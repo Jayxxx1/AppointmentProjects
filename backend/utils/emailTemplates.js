@@ -9,7 +9,7 @@ const tplCache = new Map();
 
 function loadTemplate(name) {
   if (tplCache.has(name)) return tplCache.get(name);
-  const filePath = path.join(__dirname, '..', 'templates', name);
+  const filePath = path.join(__dirname, '..', 'Templates', name);
   const html = fs.readFileSync(filePath, 'utf8');
   tplCache.set(name, html);
   return html;
@@ -22,7 +22,6 @@ function esc(s) {
     .replace(/'/g, '&#39;');
 }
 
-/** แทนค่าตัวแปรแบบง่าย + เงื่อนไขเล็กน้อย */
 function renderSimple(html, vars = {}) {
   // เงื่อนไข {{#ifLocation}} ... {{/ifLocation}}
   html = html.replace(/\{\{#ifLocation\}\}([\s\S]*?)\{\{\/ifLocation\}\}/g,

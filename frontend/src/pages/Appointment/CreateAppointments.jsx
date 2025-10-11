@@ -382,7 +382,7 @@ export default function CreateAppointment() {
             name="date"
             value={formData.date}
             onChange={handleChange}
-            min={todayStr} // ✅ ใช้ local today
+            min={todayStr} 
             className={`
               w-full px-4 py-3 border-2 rounded-xl focus:outline-none transition-colors duration-200
               ${stepErrors.date ? 'border-red-300 focus:border-red-500' : 'border-gray-300 focus:border-blue-500'}
