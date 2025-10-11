@@ -1,6 +1,6 @@
 const API_URL = import.meta.env.VITE_API_URL || '';
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { teacherService } from "../../services/teacherService.js";
 import { projectService } from "../../services/projectService.js";
 import FeedbackModal from "../../components/Modal/FeedbackModal.jsx";
@@ -18,7 +18,8 @@ export default function CreateProject() {
 
   const [loading, setLoading] = useState(false);
   const [loadingTeachers, setLoadingTeachers] = useState(true);
-  const [error, setError] = useState("");
+  
+  const [errors, setErrors] = useState({});
 
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState("");
@@ -27,10 +28,8 @@ export default function CreateProject() {
   const [userSearchTerm, setUserSearchTerm] = useState("");
   const [currentUserId, setCurrentUserId] = useState(null);
 
-  // Files selected for the project
   const [files, setFiles] = useState([]);
 
-  // Function to get the current user's ID from localStorage
   const getCurrentUserId = () => {
     try {
       const raw = localStorage.getItem('user');
@@ -43,11 +42,9 @@ export default function CreateProject() {
   };
 
   useEffect(() => {
-    // Set the current user's ID on component mount
     setCurrentUserId(getCurrentUserId());
   }, []);
 
-  // Search users for adding as members (students)
   const handleSearchUsers = async (text) => {
     if (text.trim().length < 2) {
       setUserSuggestions([]);
@@ -78,7 +75,6 @@ export default function CreateProject() {
     setSelectedMembers((prev) => prev.filter((member) => member._id !== uid));
   };
 
-  // Load teachers list on query change
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -97,95 +93,94 @@ export default function CreateProject() {
     return () => { alive = false; };
   }, [q]);
 
-  const canSubmit = useMemo(
-    () => name.trim() && advisorId && academicYear.trim() && !loading,
-    [name, advisorId, academicYear, loading]
-  );
+  const validateForm = () => {
+    const newErrors = {};
+    if (!name.trim()) newErrors.name = "กรุณากรอกชื่อโปรเจค";
+
+    const year = parseInt(academicYear.trim(), 10);
+    if (!academicYear.trim() || !/^\d{4}$/.test(academicYear.trim())) {
+      newErrors.academicYear = "กรุณากรอกปีการศึกษาเป็นตัวเลข 4 หลัก";
+    } else if (year < 2567 || year > 2570) {
+      newErrors.academicYear = "ปีการศึกษาต้องไม่ต่ำกว่าปี 2567 และไม่เกิน 2570";
+    }
+
+    if (!advisorId) newErrors.advisorId = "กรุณาเลือกอาจารย์ที่ปรึกษา";
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (!validateForm()) return;
+
     setLoading(true);
-    setError("");
+    setErrors({});
     try {
-      // Convert file objects to just file names for storage
-      const fileNames = Array.isArray(files) ? files.map((f) => f.name).filter(Boolean) : [];
+      const memberIds = selectedMembers.map((m) => m._id);
 
       if (files && files.length) {
-        // Use FormData for file upload
         const fd = new FormData();
         fd.append('name', name.trim());
         fd.append('description', description.trim());
         fd.append('advisorId', advisorId);
-        selectedMembers.map(m => m._id).forEach(id => fd.append('memberIds', id));
+        memberIds.forEach(id => fd.append('memberIds', id));
         fd.append('academicYear', academicYear.trim());
         files.forEach(f => fd.append('files', f));
         await projectService.createForm(fd);
       } else {
-        // No files, use JSON payload
         await projectService.create({
           name: name.trim(),
           description: description.trim(),
           advisorId,
-          memberIds: selectedMembers.map((m) => m._id),
+          memberIds,
           academicYear: academicYear.trim(),
-          // files is not needed here since the fileNames variable is likely for another purpose if no files are uploaded
         });
-      } // <-- This closing brace was missing!
+      }
 
-      // SUCCESS FEEDBACK and NAVIGATION: Move outside the if/else block to run after EITHER successful API call
       setFeedbackMsg("สร้างโปรเจคสำเร็จ");
       setShowFeedback(true);
       setTimeout(() => navigate("/projects"), 900);
 
     } catch (err) {
-      setError(err?.response?.data?.message || err?.message || "สร้างโปรเจคไม่สำเร็จ");
+      setErrors({ form: err?.response?.data?.message || err?.message || "สร้างโปรเจคไม่สำเร็จ" });
     } finally {
       setLoading(false);
     }
   };
+  
   return (
     <div className="min-h-screen flex items-center justify-center bg-[url('/bg/bg.webp')] bg-cover bg-center relative overflow-hidden">
       <div className="absolute inset-0 bg-white/70 backdrop-blur-xs"></div>
 
       <div className="relative z-10 max-w-3xl w-full mx-auto px-2 sm:px-8 py-8">
-        {/* Header */}
         <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-t-2xl px-8 py-6 shadow-xl">
           <h2 className="text-2xl font-medium">สร้างโปรเจคใหม่</h2>
         </div>
 
-        {/* Body */}
         <form onSubmit={handleSubmit} className="bg-white rounded-b-2xl shadow-xl px-8 py-7 space-y-6">
-          {error && (
+          {errors.form && (
             <div className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-md p-3">
-              {error}
+              {errors.form}
             </div>
           )}
-          {/* Project Name */}
           <div>
             <label className="block font-semibold mb-2 text-gray-700 text-base md:text-lg">
               ชื่อโปรเจค <span className="text-red-500">*</span>
             </label>
             <input
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => { setName(e.target.value); if(errors.name) setErrors(p => ({...p, name: ''})); }}
               placeholder="เช่น ระบบนัดหมายอัจฉริยะ"
               required
               maxLength={120}
-              className="w-full border px-4 py-3 rounded-xl focus:ring-2 focus:ring-blue-500 bg-gray-50"
+              className={`w-full border px-4 py-3 rounded-xl focus:ring-2 bg-gray-50 ${errors.name ? 'border-red-500' : 'focus:ring-blue-500'}`}
             />
+            {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
           </div>
-          {/* Academic Year */}
           <div>
             <label className="block font-semibold mb-2 text-gray-700 text-base md:text-lg">
               ปีการศึกษา <span className="text-red-500">*</span>
             </label>
-            {/*
-              Restrict academicYear input to numeric only.  Thai academic years are four-digit numbers (เช่น 2567).
-              On change we strip any non-digit characters and cap the length to 4 digits.  We also set inputMode and pattern
-              to hint numeric keyboards on mobile devices.  Without this the field allowed arbitrary text which led to
-              invalid data being sent to the backend.
-            */}
             <input
               type="text"
               inputMode="numeric"
@@ -195,13 +190,15 @@ export default function CreateProject() {
               onChange={(e) => {
                 const numeric = e.target.value.replace(/\D/g, "").slice(0, 4);
                 setAcademicYear(numeric);
+                if(errors.academicYear) setErrors(p => ({...p, academicYear: ''}));
               }}
               placeholder="เช่น 2567"
               required
-              className="w-full border px-4 py-3 rounded-xl focus:ring-2 focus:ring-blue-500 bg-gray-50"
+              className={`w-full border px-4 py-3 rounded-xl focus:ring-2 bg-gray-50 ${errors.academicYear ? 'border-red-500' : 'focus:ring-blue-500'}`}
             />
+            {errors.academicYear && <p className="text-red-500 text-sm mt-1">{errors.academicYear}</p>}
           </div>
-          {/* Add Members */}
+          
           <div>
             <label className="block font-semibold mb-2 text-gray-700 text-base md:text-lg">
               เพิ่มสมาชิก (นักศึกษา)
@@ -243,7 +240,6 @@ export default function CreateProject() {
             </div>
           </div>
 
-          {/* Selected Members */}
           {selectedMembers.length > 0 && (
             <div className="mt-2">
               <div className="mb-1 font-semibold text-gray-700">สมาชิกที่เลือก:</div>
@@ -264,16 +260,15 @@ export default function CreateProject() {
             </div>
           )}
 
-          {/* Advisor Select */}
           <div>
             <label className="block font-semibold mb-2 text-gray-700 text-base md:text-lg">
               อาจารย์ที่ปรึกษา <span className="text-red-500">*</span>
             </label>
             <select
               value={advisorId}
-              onChange={(e) => setAdvisorId(e.target.value)}
+              onChange={(e) => { setAdvisorId(e.target.value); if(errors.advisorId) setErrors(p => ({...p, advisorId: ''})); }}
               required
-              className="w-full border px-4 py-3 rounded-xl focus:ring-2 focus:ring-blue-500 bg-gray-50"
+              className={`w-full border px-4 py-3 rounded-xl focus:ring-2 bg-gray-50 ${errors.advisorId ? 'border-red-500' : 'focus:ring-blue-500'}`}
             >
               <option value="">เลือกอาจารย์</option>
               {teachers.map((t) => (
@@ -282,9 +277,9 @@ export default function CreateProject() {
                 </option>
               ))}
             </select>
+            {errors.advisorId && <p className="text-red-500 text-sm mt-1">{errors.advisorId}</p>}
           </div>
 
-          {/* Description */}
           <div>
             <label className="block font-semibold mb-2 text-gray-700 text-base md:text-lg">
               รายละเอียดโปรเจค
@@ -298,7 +293,6 @@ export default function CreateProject() {
             />
           </div>
 
-          {/* Project Files */}
           <div>
             <label className="block font-semibold mb-2 text-gray-700 text-base md:text-lg">
               ไฟล์ประจำโปรเจค
@@ -316,24 +310,23 @@ export default function CreateProject() {
             )}
           </div>
 
-          {/* Submit */}
           <div className="flex justify-end">
             <button
               type="submit"
-              disabled={!canSubmit}
+              disabled={loading}
               className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-white font-semibold bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <PlusCircle className="w-5 h-5" /> สร้างโปรเจค
+              <PlusCircle className="w-5 h-5" /> {loading ? "กำลังสร้าง..." : "สร้างโปรเจค"}
             </button>
           </div>
         </form>
 
-        {/* Feedback Modal */}
         {showFeedback && (
           <FeedbackModal
-            title="สำเร็จ"
+            open={showFeedback}
             message={feedbackMsg}
             onClose={() => setShowFeedback(false)}
+            autoClose={1500}
           />
         )}
       </div>

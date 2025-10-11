@@ -7,29 +7,43 @@ import {
   getAllAppointments,
   getAppointmentById,
   updateAppointment,
-  deleteAppointment,
+  // **[NEW]** Import new controller functions
+  updateAppointmentStatus,
+  requestReschedule,
+  respondToReschedule,
 } from "../controllers/appointmentController.js";
 
 const router = express.Router();
 
-// ต้องล็อกอินก่อน
+// All routes require login
 router.use(protect);
 
-// ทั้งระบบ (เฉพาะแอดมิน)
+// Admin route to get all appointments
 router.get("/all", requireRole("admin"), getAllAppointments);
 
-// ของฉัน
-router.get("/mine", getMyAppointments);   // ✅ ให้ตรงกับ service
+// User routes for their own appointments
+router.get("/mine", getMyAppointments);
 router.get("/", getMyAppointments);
 
-// รายการเดี่ยว
+// Get a single appointment by ID
 router.get("/:id", getAppointmentById);
 
-// สร้าง/แก้ไข (รองรับแนบไฟล์)
+// Create a new appointment
 router.post("/", upload.array("files", 20), createAppointment);
+
+// Update appointment details (title, description etc.)
 router.patch("/:id", upload.array("files", 20), updateAppointment);
 
-// ลบ
-router.delete("/:id", deleteAppointment);
+// **[NEW ROUTES FOR STATUS MANAGEMENT]**
+
+// Route for advisor to approve/reject or student to cancel
+router.patch("/:id/status", updateAppointmentStatus);
+
+// Route for advisor to request a reschedule
+router.post("/:id/reschedule-request", requestReschedule);
+
+// Route for student to accept/decline a reschedule request
+router.post("/:id/reschedule-response", respondToReschedule);
+
 
 export default router;

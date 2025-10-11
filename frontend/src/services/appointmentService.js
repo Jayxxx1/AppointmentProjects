@@ -1,108 +1,201 @@
-import axios from 'axios';
+import React, { useState, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext.jsx";
+import appointmentService from "../services/appointmentService.js";
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// **[NEW]** Upcoming Appointments Widget
+// This component fetches and displays the next 3 upcoming, approved appointments.
+function UpcomingAppointments() {
+    const [upcoming, setUpcoming] = useState([]);
+    const [loading, setLoading] = useState(true);
 
-function getToken() {
-  const direct =
-    localStorage.getItem('token') ||
-    localStorage.getItem('authToken') ||
-    localStorage.getItem('accessToken');
-  if (direct) return String(direct).replace(/^"|"$/g, '');
-  try {
-    const maybe =
-      JSON.parse(localStorage.getItem('user') || '{}') ||
-      JSON.parse(localStorage.getItem('userInfo') || '{}');
-    return String(maybe?.token || maybe?.accessToken || maybe?.jwt || '').replace(/^"|"$/g, '');
-  } catch { return ''; }
+    useEffect(() => {
+        const fetchUpcoming = async () => {
+            try {
+                const allAppointments = await appointmentService.list();
+                const now = new Date();
+                const filtered = allAppointments
+                    .filter(app => app.status === 'approved' && new Date(app.startAt) > now)
+                    .sort((a, b) => new Date(a.startAt) - new Date(b.startAt))
+                    .slice(0, 3); // Get the next 3 appointments
+                setUpcoming(filtered);
+            } catch (error) {
+                console.error("Failed to fetch upcoming appointments", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchUpcoming();
+    }, []);
+
+    if (loading) {
+        return (
+             <div className="max-w-6xl mx-auto">
+                <div className="text-center bg-white/80 backdrop-blur-lg border border-white/60 rounded-2xl p-6 shadow-xl">
+                    <p className="text-gray-500">กำลังโหลดนัดหมายถัดไป...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (upcoming.length === 0) {
+        return (
+            <div className="max-w-6xl mx-auto">
+                <div className="text-center bg-white/80 backdrop-blur-lg border border-white/60 rounded-2xl p-6 shadow-xl">
+                    <h3 className="text-xl font-semibold text-gray-800">ไม่มีนัดหมายที่อนุมัติแล้ว</h3>
+                    <p className="text-gray-600 mt-2">เมื่อมีนัดหมายที่ได้รับการอนุมัติ จะแสดงที่นี่</p>
+                </div>
+            </div>
+        )
+    }
+
+    return (
+        <div className="max-w-6xl mx-auto">
+            <div className="bg-white/80 backdrop-blur-lg border border-white/60 rounded-2xl p-6 shadow-xl">
+                 <h3 className="text-2xl font-semibold text-gray-900 mb-4">นัดหมายถัดไปของคุณ</h3>
+                 <div className="space-y-4">
+                    {upcoming.map(app => (
+                        <Link to={`/appointments/${app._id}`} key={app._id} className="block p-4 rounded-xl bg-gradient-to-r from-green-50 to-emerald-50 border-l-4 border-green-500 hover:shadow-lg transition-shadow duration-300 relative overflow-hidden group">
+                            {/* Glow effect on hover */}
+                            <div className="absolute inset-0 bg-green-400 opacity-0 group-hover:opacity-10 transition-opacity duration-300 animate-pulse"></div>
+
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <p className="font-bold text-gray-800">{app.title}</p>
+                                    <p className="text-sm text-gray-600">{new Date(app.startAt).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })} น.</p>
+                                </div>
+                                <span className="text-green-600 font-bold text-sm bg-green-100 px-3 py-1 rounded-full">อนุมัติแล้ว</span>
+                            </div>
+                        </Link>
+                    ))}
+                 </div>
+            </div>
+        </div>
+    );
 }
 
-const client = axios.create({ baseURL: API_URL });
-client.interceptors.request.use((config) => {
-  const t = getToken();
-  config.headers = config.headers || {};
-  if (t) config.headers.Authorization = `Bearer ${t}`;
-  return config;
-});
 
-function normalizeProjectId(v) {
-  if (v == null) return '';
-  if (typeof v === 'string') {
-    const s = v.trim();
-    if (!s) return '';
-    if (
-      (s.startsWith('{') && s.endsWith('}')) ||
-      (s.startsWith('[') && s.endsWith(']')) ||
-      (s.startsWith('"') && s.endsWith('"'))
-    ) {
-      try { return normalizeProjectId(JSON.parse(s)); } catch { return s; }
-    }
-    return s;
-  }
-  if (Array.isArray(v)) return normalizeProjectId(v[0]);
-  if (typeof v === 'object') return normalizeProjectId(v._id || v.id);
-  return String(v || '');
+export default function MainContent() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const displayName = user?.user?.fullName || user?.user?.username || "ผู้ใช้";
+
+  const handleCreate = () => {
+    navigate("/appointments/create"); 
+  };
+
+  return (
+    <div className="min-h-screen bg-[url('/bg/bg.webp')]  bg-cover bg-fixed  bg-no-repeat ">
+      <div className="relative z-10 backdrop-blur-sm">
+        <div className="relative z-10 px-4 py-10 sm:px-6 lg:px-8">
+          {/* HERO */}
+          <section className="max-w-6xl mx-auto">
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-3xl p-8 sm:p-12 shadow-2xl relative overflow-hidden">
+              <div className="absolute -right-16 -top-16 w-56 h-56 bg-white/10 rounded-full blur-xl" />
+              <div className="absolute -left-10 -bottom-10 w-40 h-40 bg-white/10 rounded-full blur-lg" />
+              <div className="relative">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
+                    <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="none">
+                      <path d="M7 3v4M17 3v4M4 11h16M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1M6 5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                  <p className="uppercase tracking-wider text-blue-100 text-sm">ระบบนัดหมายออนไลน์</p>
+                </div>
+                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-semibold leading-tight">
+                  สวัสดี {displayName} 👋<br />
+                  พร้อมหรือยังสำหรับการนัดหมายครั้งถัดไป?
+                </h1>
+                <p className="mt-5 text-blue-100 text-base sm:text-lg max-w-3xl">
+                  หน้านี้เป็นจุดเริ่มต้นก่อนใช้งาน — คุณสามารถสร้างนัดหมายใหม่ หรือตรวจสอบนัดหมายที่กำลังจะมาถึงได้ที่นี่
+                </p>
+                <div className="mt-8 flex flex-wrap gap-3">
+                  <button
+                    onClick={handleCreate}
+                    className="inline-flex items-center gap-2 bg-cyan-500 hover:bg-cyan-400 text-white px-6 py-3 rounded-xl font-medium shadow-xl hover:shadow-2xl transition-all"
+                  >
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+                    เริ่มสร้างนัดหมาย
+                  </button>
+                  <Link
+                    to="/about"
+                    className="inline-flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white px-6 py-3 rounded-xl font-medium transition-all"
+                  >
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5V5.5A2.5 2.5 0 0 1 6.5 3H20v14H6.5A2.5 2.5 0 0 0 4 19.5Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    เกี่ยวกับระบบ
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* **[NEW]** Upcoming Appointments Section */}
+          <section className="max-w-6xl mx-auto mt-12">
+            <UpcomingAppointments />
+          </section>
+
+          {/* ขั้นตอนการใช้งาน */}
+          <section className="max-w-6xl mx-auto mt-12">
+            <div className="grid md:grid-cols-3 gap-6">
+              <StepCard
+                index={1}
+                title="กรอกข้อมูลนัดหมาย"
+                desc="ระบุหัวข้อ วันเวลา สถานที่/ลิงก์ และรายละเอียดที่จำเป็น"
+                icon={<svg className="w-7 h-7" viewBox="0 0 24 24" fill="none"><path d="M9 7h6M9 12h6M9 17h3M5 21h14a2 2 0 0 0 2-2V7l-4-4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+              />
+              <StepCard
+                index={2}
+                title="เชิญผู้เกี่ยวข้อง"
+                desc="เพิ่มผู้เข้าร่วมผ่านรายชื่อผู้ใช้หรืออีเมล และแนบหมายเหตุได้"
+                icon={<svg className="w-7 h-7" viewBox="0 0 24 24" fill="none"><path d="M16 11c1.657 0 3-1.79 3-4s-1.343-4-3-4-3 1.79-3 4 1.343 4 3 4ZM5 9c1.657 0 3-1.79 3-4S6.657 1 5 1 2 2.79 2 5s1.343 4 3 4Zm11 2c-2.21 0-4.21 1.79-4.86 4.26-.24.92.51 1.74 1.46 1.74h6.8c.95 0 1.7-.82 1.46-1.74C20.21 12.79 18.21 11 16 11ZM5 11c-2.21 0-4.21 1.79-4.86 4.26-.24.92.51 1.74 1.46 1.74H8.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+              />
+              <StepCard
+                index={3}
+                title="ยืนยันและส่งแจ้งเตือน"
+                desc="ตรวจทานข้อมูล กดยืนยัน ระบบจะแจ้งเตือนไปยังผู้เกี่ยวข้อง"
+                icon={<svg className="w-7 h-7" viewBox="0 0 24 24" fill="none"><path d="m20 7-9 9-5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+              />
+            </div>
+          </section>
+
+          {/* FOOTER CTA */}
+          <section className="max-w-6xl mx-auto mt-12 mb-8">
+            <div className="bg-gradient-to-r from-cyan-500 to-blue-600 rounded-2xl p-6 sm:p-8 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-2xl">
+              <div className="mb-4 sm:mb-0">
+                <h4 className="text-xl font-semibold">พร้อมแล้วใช่ไหม?</h4>
+                <p className="text-blue-100 mt-1">เริ่มสร้างนัดหมายแรกของคุณในไม่กี่ขั้นตอน</p>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={handleCreate} className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white text-blue-700 font-medium hover:bg-blue-50 transition-all">
+                  เริ่มเลย
+                </button>
+                <Link to="/about" className="inline-flex items-center gap-2 px-5 py-3 rounded-xl border border-white/60 text-white hover:bg-white/10 transition-all">
+                  ดูวิธีใช้งาน
+                </Link>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
 }
 
-export const appointmentService = {
-  async listAll() {
-    const r = await client.get('/api/appointments/all');
-    return r.data;
-  },
-  async list(params = {}) {
-    const r = await client.get('/api/appointments/mine', { params });
-    return r.data;
-  },
+function StepCard({ index, title, desc, icon }) {
+  return (
+    <div className="bg-white/80 backdrop-blur-lg border border-white/60 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-semibold">
+          {index}
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+      </div>
+      <div className="flex items-start gap-3 text-gray-700">
+        <div className="text-gray-500">{icon}</div>
+        <p className="leading-relaxed">{desc}</p>
+      </div>
+    </div>
+  );
+}
 
-  async create(data = {}, files = []) {
-    const clean = { ...data };
-    // 🔒 บังคับให้เป็นสตริง _id เสมอ
-    clean.project = normalizeProjectId(clean.project);
-
-    // (ปลั๊กกันพลาด: ถ้าไม่ได้เลือกโปรเจคให้ throw ทันที)
-    if (!/^[a-f\d]{24}$/i.test(clean.project || '')) {
-      throw new Error('กรุณาเลือกโปรเจคให้ถูกต้อง (project id ไม่ใช่ ObjectId)');
-    }
-
-    if (files && files.length) {
-      const fd = new FormData();
-      Object.entries(clean).forEach(([k, v]) => {
-        if (Array.isArray(v)) {
-          fd.append(k, JSON.stringify(v)); // array -> JSON string
-        } else {
-          fd.append(k, v == null ? '' : v);
-        }
-      });
-      // ย้ำใส่สองฟิลด์เพื่อรองรับ backend ทุกเวอร์ชัน
-      fd.set('project', clean.project);
-      fd.set('projectId', clean.project);
-
-      for (const f of files) fd.append('files', f);
-
-      const r = await client.post('/api/appointments', fd);
-      return r.data;
-    } else {
-      // JSON mode — ใส่ทั้ง project & projectId
-      const payload = { ...clean, projectId: clean.project };
-      const r = await client.post('/api/appointments', payload);
-      return r.data;
-    }
-  },
-
-  async get(id) {
-    const r = await client.get(`/api/appointments/${encodeURIComponent(String(id))}`);
-    return r.data;
-  },
-
-  async update(id, data) {
-    const r = await client.patch(`/api/appointments/${encodeURIComponent(String(id))}`, data);
-    return r.data;
-  },
-
-  async remove(id) {
-    const r = await client.delete(`/api/appointments/${encodeURIComponent(String(id))}`);
-    return r.data;
-  },
-};
-
-export const getAppointments = (params = {}) => appointmentService.list(params);
-export default appointmentService;

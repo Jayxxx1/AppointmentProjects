@@ -189,6 +189,7 @@ export default function AdminDashboard() {
                 <option value="pending">รอดำเนินการ</option>
                 <option value="approved">อนุมัติแล้ว</option>
                 <option value="reschedule_requested">ขอเลื่อนนัด</option>
+                {/* "นักศึกษาไม่สะดวกในวัน/เวลาที่ท่านเสนอ การนัดหมายจึงยังคงเป็นวัน/เวลาเดิมคือ [วัน/เวลาเดิม]" ทำให้อาจารย์เป็นฝ่ายตัดสินใจต่อว่าจะนัดใหม่ หรือจะยืนยันตามนัดเดิม */}
                 <option value="rejected">ถูกปฏิเสธ</option>
                 <option value="cancelled">ยกเลิก</option>
                 <option value="expired">หมดอายุ</option>

@@ -1,7 +1,74 @@
 import React from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext.jsx";
+function UpcomingAppointments() {
+    const [upcoming, setUpcoming] = useState([]);
+    const [loading, setLoading] = useState(true);
 
+    useEffect(() => {
+        const fetchUpcoming = async () => {
+            try {
+                const allAppointments = await appointmentService.list();
+                const now = new Date();
+                const filtered = allAppointments
+                    .filter(app => app.status === 'approved' && new Date(app.startAt) > now)
+                    .sort((a, b) => new Date(a.startAt) - new Date(b.startAt))
+                    .slice(0, 3); // Get the next 3 appointments
+                setUpcoming(filtered);
+            } catch (error) {
+                console.error("Failed to fetch upcoming appointments", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchUpcoming();
+    }, []);
+
+    if (loading) {
+        return (
+             <div className="max-w-6xl mx-auto">
+                <div className="text-center bg-white/80 backdrop-blur-lg border border-white/60 rounded-2xl p-6 shadow-xl">
+                    <p className="text-gray-500">กำลังโหลดนัดหมายถัดไป...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (upcoming.length === 0) {
+        return (
+            <div className="max-w-6xl mx-auto">
+                <div className="text-center bg-white/80 backdrop-blur-lg border border-white/60 rounded-2xl p-6 shadow-xl">
+                    <h3 className="text-xl font-semibold text-gray-800">ไม่มีนัดหมายที่อนุมัติแล้ว</h3>
+                    <p className="text-gray-600 mt-2">เมื่อมีนัดหมายที่ได้รับการอนุมัติ จะแสดงที่นี่</p>
+                </div>
+            </div>
+        )
+    }
+
+    return (
+        <div className="max-w-6xl mx-auto">
+            <div className="bg-white/80 backdrop-blur-lg border border-white/60 rounded-2xl p-6 shadow-xl">
+                 <h3 className="text-2xl font-semibold text-gray-900 mb-4">นัดหมายถัดไปของคุณ</h3>
+                 <div className="space-y-4">
+                    {upcoming.map(app => (
+                        <Link to={`/appointments/${app._id}`} key={app._id} className="block p-4 rounded-xl bg-gradient-to-r from-green-50 to-emerald-50 border-l-4 border-green-500 hover:shadow-lg transition-shadow duration-300 relative overflow-hidden group">
+                            {/* Glow effect on hover */}
+                            <div className="absolute inset-0 bg-green-400 opacity-0 group-hover:opacity-10 transition-opacity duration-300 animate-pulse"></div>
+
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <p className="font-bold text-gray-800">{app.title}</p>
+                                    <p className="text-sm text-gray-600">{new Date(app.startAt).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })} น.</p>
+                                </div>
+                                <span className="text-green-600 font-bold text-sm bg-green-100 px-3 py-1 rounded-full">อนุมัติแล้ว</span>
+                            </div>
+                        </Link>
+                    ))}
+                 </div>
+            </div>
+        </div>
+    );
+}
 
 export default function MainContent() {
   const navigate = useNavigate();
@@ -16,18 +83,6 @@ export default function MainContent() {
   return (
     <div className="min-h-screen bg-[url('/bg/bg.webp')]  bg-cover bg-fixed  bg-no-repeat ">
       <div className="relative z-10 backdrop-blur-sm">
-        {/* subtle pattern background */}
-        {/* <div className="absolute inset-0 opacity-5 pointer-events-none select-none">
-        <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" aria-hidden="true">
-          <defs>
-            <pattern id="dots-plus" width="20" height="20" patternUnits="userSpaceOnUse">
-              <circle cx="10" cy="10" r="1" fill="currentColor"/>
-              <path d="M10 5 L10 15 M5 10 L15 10" stroke="currentColor" strokeWidth="0.5"/>
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#dots-plus)" />
-        </svg>
-      </div> */}
 
         <div className="relative z-10 px-4 py-10 sm:px-6 lg:px-8">
           {/* HERO */}

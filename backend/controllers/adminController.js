@@ -1,59 +1,18 @@
 import User from '../models/User.js';
 import bcrypt from 'bcryptjs';
 
-// ===== เดิม: สร้างอาจารย์ =====
-export const createTeacher = async (req, res) => {
-  const { username, email, password } = req.body;
-  if (!username || !email || !password) return res.status(400).json({ message: 'username, email, password required' });
+// **[REFACTOR]** ลบโค้ดเก่าที่ไม่ได้ใช้งานออกทั้งหมด เหลือเฉพาะฟังก์ชันที่ export และใช้งานจริง
 
-  // Enforce minimum password length for teacher accounts.
-  if (typeof password !== 'string' || password.length < 6) {
-    return res.status(400).json({ message: 'password ต้องมีความยาวอย่างน้อย 6 ตัวอักษร' });
-  }
-
-  const exists = await User.findOne({ email });
-  if (exists) return res.status(409).json({ message: 'Email already in use' });
-
-  const hash = await bcrypt.hash(password, 10);
-  const teacher = await User.create({ username, email, password: hash, role: 'teacher' });
-  res.status(201).json({ _id: teacher._id, username: teacher.username, email: teacher.email, role: teacher.role });
-};
-
-// ===== เดิม: ลิสต์อาจารย์ =====
-export const listTeachersAdmin = async (req, res) => {
-  const { q } = req.query;
-  const filter = { role: 'teacher' };
-  if (q) {
-    // Escape regex special characters to treat the search string literally
-    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    filter.$or = [
-      { username: { $regex: escaped, $options: 'i' } },
-      { email:    { $regex: escaped, $options: 'i' } },
-    ];
-  }
-  const items = await User.find(filter).select('_id username email role').sort({ username: 1 });
-  res.json(items);
-};
-
-// ===== เดิม: ตั้ง role แบบเฉพาะคน =====
-export const setRole = async (req, res) => {
-  const { id } = req.params;
-  const { role } = req.body;
-  if (!['student','teacher','admin'].includes(role)) return res.status(400).json({ message: 'Invalid role' });
-  const user = await User.findByIdAndUpdate(id, { role }, { new: true }).select('_id username email role');
-  if (!user) return res.status(404).json({ message: 'User not found' });
-  res.json(user);
-};
-
-// ===== ใหม่: ลิสต์ผู้ใช้ทั้งหมด + ค้นหา/กรอง =====
+/**
+ * @description List all users with filter and search
+ * @route GET /api/admin/users
+ * @access Private/Admin
+ */
 export const listAllUsers = async (req, res) => {
   const { q = "", role } = req.query;
   const filter = {};
   if (role && ['student','teacher','admin'].includes(role)) filter.role = role;
   if (q && q.trim()) {
-    // Escape regex special characters to treat the query as a literal string rather than a pattern.  This
-    // prevents users from injecting regex expressions which could cause performance issues or match
-    // unintended patterns.
     const escaped = q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const kw = new RegExp(escaped, 'i');
     filter.$or = [{ username: kw }, { email: kw }, { fullName: kw }];
@@ -64,14 +23,17 @@ export const listAllUsers = async (req, res) => {
   res.json(items);
 };
 
-// ===== ใหม่: สร้างผู้ใช้กำหนด role =====
+/**
+ * @description Create a new user with a specific role
+ * @route POST /api/admin/users
+ * @access Private/Admin
+ */
 export const createUserAdmin = async (req, res) => {
   const { username, email, password, role, fullName, studentId } = req.body || {};
   if (!username || !email || !password || !role) {
     return res.status(400).json({ message: 'username, email, password, role required' });
   }
 
-  // Enforce a minimum password length.  Weak or short passwords can compromise security.
   if (typeof password !== 'string' || password.length < 6) {
     return res.status(400).json({ message: 'password ต้องมีความยาวอย่างน้อย 6 ตัวอักษร' });
   }
@@ -82,7 +44,6 @@ export const createUserAdmin = async (req, res) => {
     return res.status(400).json({ message: 'studentId required for role=student' });
   }
 
-  // Ensure studentId, if provided for student role, is exactly a 10-digit numeric string.  
   if (role === 'student' && studentId && !/^\d{10}$/.test(String(studentId).trim())) {
     return res.status(400).json({ message: 'studentId ต้องเป็นตัวเลข 10 หลัก' });
   }
@@ -109,11 +70,14 @@ export const createUserAdmin = async (req, res) => {
   res.status(201).json(safe);
 };
 
-//  ลบผู้ใช้ (กันลบ admin) =====
+/**
+ * @description Delete a user
+ * @route DELETE /api/admin/users/:id
+ * @access Private/Admin
+ */
 export const deleteUserAdmin = async (req, res) => {
   const { id } = req.params;
 
-  // กันลบตัวเอง (ถ้ามี req.user)
   if (req.user && String(req.user.id) === String(id)) {
     return res.status(400).json({ message: 'cannot delete yourself' });
   }
@@ -125,3 +89,4 @@ export const deleteUserAdmin = async (req, res) => {
   await user.deleteOne();
   res.json({ message: 'deleted' });
 };
+

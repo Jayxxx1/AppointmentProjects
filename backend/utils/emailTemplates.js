@@ -23,16 +23,17 @@ function esc(s) {
 }
 
 function renderSimple(html, vars = {}) {
-  // เงื่อนไข {{#ifLocation}} ... {{/ifLocation}}
+  // Conditional blocks
   html = html.replace(/\{\{#ifLocation\}\}([\s\S]*?)\{\{\/ifLocation\}\}/g,
     vars.locationSuffix ? '$1' : '');
 
-  // เงื่อนไข {{#ifDescription}} ... {{/ifDescription}}
   html = html.replace(/\{\{#ifDescription\}\}([\s\S]*?)\{\{\/ifDescription\}\}/g,
     vars.descriptionHtml ? '$1' : '');
 
-  // ตัวแปร
+  // Variables
   return html
+    .replace(/\{\{headline\}\}/g, esc(vars.headline ?? ''))
+    .replace(/\{\{message\}\}/g, vars.message ?? '') // Message can contain <br> so don't escape it
     .replace(/\{\{projectName\}\}/g, esc(vars.projectName ?? ''))
     .replace(/\{\{title\}\}/g, esc(vars.title ?? ''))
     .replace(/\{\{date\}\}/g, esc(vars.date ?? ''))
@@ -40,51 +41,56 @@ function renderSimple(html, vars = {}) {
     .replace(/\{\{endTime\}\}/g, esc(vars.endTime ?? ''))
     .replace(/\{\{meetingType\}\}/g, esc(vars.meetingType ?? ''))
     .replace(/\{\{locationSuffix\}\}/g, esc(vars.locationSuffix ?? ''))
-    .replace(/\{\{detailUrl\}\}/g, esc(vars.detailUrl ?? ''))
+    .replace(/\{\{detailUrl\}\}/g, esc(vars.detailUrl ?? '')) // URL is safe
     .replace(/\{\{descriptionHtml\}\}/g, vars.descriptionHtml ?? '');
 }
 
-/** แปลงคำอธิบายหลายบรรทัดเป็น HTML ปลอดภัย */
+/** Converts multiline description to safe HTML */
 function toDescriptionHtml(s) {
   if (!s) return '';
   return esc(String(s)).replace(/\n/g, '<br/>');
 }
 
-/** เรนเดอร์เทมเพลตอีเมล "สร้างนัดหมายใหม่" */
-export function renderAppointmentCreatedEmail(data) {
-  const htmlTpl = loadTemplate('appointmentCreated.html');
+/** Renders a generic appointment email template */
+export function renderAppointmentEmail({ appointment, headline, message }) {
+  const htmlTpl = loadTemplate('appointmentCreated.html'); // Use the modified template
+  const FE_URL = (process.env.CORS_ORIGIN || 'http://localhost:5173').replace(/\/+$/, '');
+  const detailUrl = `${FE_URL}/appointments/${appointment._id}`;
+
   const vars = {
-    projectName: data.projectName,
-    title: data.title,
-    date: data.date,
-    startTime: data.startTime,
-    endTime: data.endTime,
-    meetingType: data.meetingType,
-    locationSuffix: data.meetingType === 'offline' && data.location ? ` @ ${data.location}` : '',
-    detailUrl: data.detailUrl,
-    descriptionHtml: data.description ? toDescriptionHtml(data.description) : '',
+    headline,
+    message,
+    projectName: appointment.project?.name || '(ไม่มีชื่อโปรเจกต์)',
+    title: appointment.title,
+    date: appointment.date,
+    startTime: appointment.startTime,
+    endTime: appointment.endTime,
+    meetingType: appointment.meetingType,
+    locationSuffix: appointment.meetingType === 'offline' && appointment.location ? ` @ ${appointment.location}` : '',
+    detailUrl: detailUrl,
+    descriptionHtml: appointment.description ? toDescriptionHtml(appointment.description) : '',
   };
   return renderSimple(htmlTpl, vars);
 }
 
 
-export function buildIcs({
-  uid, title, description, startUtc, endUtc, location, url
-}) {
-  // เวลา UTC รูปแบบ YYYYMMDDTHHMMSSZ
+export function buildIcs(appointment) {
+  const { _id, title, description, startAt, endAt, location, meetingType } = appointment;
+  const FE_URL = (process.env.CORS_ORIGIN || 'http://localhost:5173').replace(/\/+$/, '');
+  const detailUrl = `${FE_URL}/appointments/${_id}`;
+
   const fmt = (d) => {
     try {
       const dateObj = d instanceof Date ? d : new Date(d);
-      if (!(dateObj instanceof Date) || isNaN(dateObj)) return null;
+      if (isNaN(dateObj)) return null;
       return dateObj.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
     } catch {
       return null;
     }
   };
-  const now = fmt(new Date()) || (new Date()).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
-
-  const dtstart = fmt(startUtc);
-  const dtend = fmt(endUtc);
+  const now = fmt(new Date());
+  const dtstart = fmt(startAt);
+  const dtend = fmt(endAt);
 
   const lines = [
     'BEGIN:VCALENDAR',
@@ -93,15 +99,14 @@ export function buildIcs({
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',
-    `UID:${uid || (Date.now() + '@projectbu')}`,
+    `UID:${_id}@projectbu.com`,
     `DTSTAMP:${now}`,
-    // Only include DTSTART/DTEND when we successfully formatted valid dates
     ...(dtstart ? [`DTSTART:${dtstart}`] : []),
     ...(dtend ? [`DTEND:${dtend}`] : []),
     `SUMMARY:${title || ''}`,
     description ? `DESCRIPTION:${description.replace(/\r?\n/g, '\\n')}` : 'DESCRIPTION:',
-    location ? `LOCATION:${location}` : '',
-    url ? `URL:${url}` : '',
+    meetingType === 'offline' && location ? `LOCATION:${location}` : '',
+    `URL:${detailUrl}`,
     'END:VEVENT',
     'END:VCALENDAR',
   ].filter(Boolean);

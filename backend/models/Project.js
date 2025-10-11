@@ -17,8 +17,14 @@ const projectSchema = new mongoose.Schema(
       required: [true, 'กรุณาระบุปีการศึกษา เช่น 2567'],
       trim: true,
       index: true,
-
       match: [/^\d{4}$/, 'ปีการศึกษาต้องเป็นตัวเลข 4 หลัก เช่น 2567'],
+      validate: {
+        validator: function(v) {
+          const year = parseInt(v, 10);
+          return !isNaN(year) && year >= 2567 && year <= 2570;
+        },
+        message: 'ปีต่ำไปกว่าที่กำหนด (2567-2570)', //error แสดงใน frontend แล้วจ้า
+      }
     },
     files: [
       {

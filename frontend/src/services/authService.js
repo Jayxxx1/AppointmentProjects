@@ -8,12 +8,14 @@ const register = async (userData) => {
     const response = await axios.post(`${API_URL}register`, userData);
     return response.data;
   } catch (error) {
-    const serverMessage = error.response?.data?.message;
-    let msg = serverMessage || 'เกิดข้อผิดพลาดในการลงทะเบียน';
-    if (msg.includes('Path `password`')) {
-      msg = 'รหัสผ่านควรมีความยาวอย่างน้อย 6 ตัวอักษร';
+    // **[REFACTOR]** โยน error object ทั้งหมดออกไปให้ Component จัดการ
+    const serverMessage = error.response?.data?.message || 'เกิดข้อผิดพลาดในการลงทะเบียน';
+    if (serverMessage.includes('Path `password`')) {
+      error.message = 'รหัสผ่านควรมีความยาวอย่างน้อย 6 ตัวอักษร';
+    } else {
+      error.message = serverMessage;
     }
-    throw msg;
+    throw error;
   }
 };
 
@@ -25,15 +27,10 @@ const login = async ({ email, password }) => {
     }
     return response.data;
   } catch (error) {
-    const status = error.response?.status;
-    const serverMessage = error.response?.data?.message;
-    let msg;
-    if (status === 401) {
-      msg = serverMessage;
-    } else {
-      msg = serverMessage || 'เกิดข้อผิดพลาดบนเซิร์ฟเวอร์';
-    }
-    throw msg;
+    // **[REFACTOR]** โยน error object ทั้งหมดออกไปให้ Component จัดการ
+    const serverMessage = error.response?.data?.message || 'เกิดข้อผิดพลาดบนเซิร์ฟเวอร์';
+    error.message = serverMessage;
+    throw error;
   }
 };
 
@@ -41,3 +38,4 @@ export default {
   register,
   login,
 };
+

@@ -1,5 +1,5 @@
 import React from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import Layout from "./components/Navigation/Layout";
 import MainContent from "./components/Maincontent.jsx";
 import LoginPage from "./pages/Auth/LoginPage";
@@ -17,17 +17,26 @@ import AdminLayout from "./components/Admin/AdminLayout.jsx";
 import AdminDashboard from "./components/Admin/AdminDashboard.jsx";
 import AdminAppointmentsPage from "./pages/Admin/AdminAppointmentsPage.jsx";
 import AdminProjectsPage from "./pages/Admin/AdminProjectsPage.jsx";
-// detail pages (ในโปรเจ็กต์ของคุณอยู่ใน components)
 import ProjectDetail from "./components/ProjectDetail.jsx";
 import AppointmentDetail from "./components/AppointmentDetail.jsx";
+import LandingPage from "./pages/Main/LandingPage.jsx"; // **[REFACTOR]** Import LandingPage
+import { useAuth } from "./contexts/AuthContext.jsx";
+
+const AppLayout = () => {
+  const { isAuthenticated, loading } = useAuth();
+  if (loading) return <div>Loading...</div>; 
+  return isAuthenticated ? <Layout /> : <Navigate to="/landing" replace />;
+};
 
 export default function App() {
   return (
     <Routes>
-      
+      <Route path="/landing" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
-      <Route path="/about" element={<AboutPages/>}/>
+      
+      {/* **[REFACTOR]** ปรับ Route ของ AboutPage ให้อยู่ภายใต้ Layout หลัก */}
+      <Route path="/about" element={<Layout><AboutPages/></Layout>}/>
 
       {/* Admin area: separate layout and routes for administrators */}
       <Route
@@ -44,39 +53,18 @@ export default function App() {
         <Route path="projects" element={<AdminProjectsPage />} />
       </Route>
 
-      {/* app under Layout (ทุกอย่างยกเว้น '/') */}
-      <Route path="/" element={<Layout />}>
-      <Route path="/" element={<MainContent />} />
-
-        <Route
-          path="appointments"
-          element={<ProtectedRoute><AppointmentsPages /></ProtectedRoute>}
-        />
-        <Route
-          path="appointments/create"
-          element={<ProtectedRoute><CreateAppointment /></ProtectedRoute>}
-        />
-        <Route
-          path="appointments/:id"
-          element={<ProtectedRoute><AppointmentDetail /></ProtectedRoute>}
-        />
-        <Route
-          path="projects"
-          element={<ProtectedRoute><ProjectsPage /></ProtectedRoute>}
-        />
-        <Route
-          path="projects/create"
-          element={<ProtectedRoute><CreateProject /></ProtectedRoute>}
-        />
-        <Route
-          path="projects/details/:id"
-          element={<ProtectedRoute><ProjectDetail /></ProtectedRoute>}
-        />
-        <Route
-          path="meetsummary"
-          element={<ProtectedRoute><MeetSumPage /></ProtectedRoute>}
-        />
+      {/* app under Layout (ทุกอย่างยกเว้น landing, login, register) */}
+      <Route path="/" element={<AppLayout />}>
+        <Route index element={<MainContent />} />
+        <Route path="appointments" element={<AppointmentsPages />} />
+        <Route path="appointments/create" element={<CreateAppointment />} />
+        <Route path="appointments/:id" element={<AppointmentDetail />} />
+        <Route path="projects" element={<ProjectsPage />} />
+        <Route path="projects/create" element={<CreateProject />} />
+        <Route path="projects/details/:id" element={<ProjectDetail />} />
+        <Route path="meetsummary" element={<MeetSumPage />} />
       </Route>
     </Routes>
   );
 }
+

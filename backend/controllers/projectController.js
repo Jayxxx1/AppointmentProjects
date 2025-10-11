@@ -274,9 +274,7 @@ export const searchUsers = async (req, res, next) => {
   try {
     const qRaw = (req.query.q || '').trim();
     let role = (req.query.role || 'student').trim().toLowerCase();
-    // Only allow valid roles; default to student if invalid
     if (!['student', 'teacher', 'admin'].includes(role)) role = 'student';
-    // Sanitize limit: must be positive integer; default 10; max 50
     const parsedLimit = parseInt(req.query.limit, 10);
     let limit = 10;
     if (!Number.isNaN(parsedLimit) && parsedLimit > 0) {
@@ -292,11 +290,12 @@ export const searchUsers = async (req, res, next) => {
     const filter = {};
     if (role) filter.role = role;
     if (q) {
-      // Escape regex special characters in the search query to prevent Regex DoS or injection of special patterns.
       const safePattern = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       filter.$or = [
         { username: new RegExp(safePattern, 'i') },
         { email: new RegExp(safePattern, 'i') },
+        { fullName: new RegExp(safePattern, 'i') },
+        { studentId: new RegExp(safePattern, 'i') },
       ];
     }
 
@@ -304,13 +303,11 @@ export const searchUsers = async (req, res, next) => {
     const currentUserId = toStrId(req.user.id);
     combinedExcludeIds.add(currentUserId);
 
-    // หากระบุ excludeProject ให้เอา advisor และสมาชิกออกจากตัวเลือก
     if (excludeProject) {
       const p = await Project.findById(excludeProject).select('members advisor').lean();
       if (p?.advisor) combinedExcludeIds.add(toStrId(p.advisor));
       (p?.members || []).map(toStrId).forEach(id => combinedExcludeIds.add(id));
     }
-    // หากระบุ academicYear ให้ไม่รวมสมาชิกที่อยู่ในโปรเจคปีนั้นอยู่แล้ว
     if (academicYear) {
       const conflicts = await Project.find({ academicYear }).select('members');
       conflicts.forEach(doc => (doc.members || []).map(toStrId).forEach(id => combinedExcludeIds.add(id)));
@@ -342,21 +339,26 @@ export const addMembers = async (req, res, next) => {
     const project = await Project.findById(id);
     if (!project) return res.status(404).json({ message: 'Project not found' });
 
-    // ตรวจสิทธิ์: ผู้สร้างหรือ admin เท่านั้น
-    if (project.createdBy.toString() !== req.user.id && req.user.role !== 'admin') {
+    // **[BUG FIX]** แก้ไขการตรวจสอบสิทธิ์ให้แม่นยำขึ้น
+    // ตรวจสอบสิทธิ์: ผู้สร้าง, อาจารย์ที่ปรึกษา, หรือ admin เท่านั้นที่เพิ่มสมาชิกได้
+    const currentUserIdStr = req.user.id.toString();
+    const createdByIdStr = project.createdBy.toString();
+    const advisorIdStr = project.advisor.toString();
+
+    const isCreator = currentUserIdStr === createdByIdStr;
+    const isAdvisor = currentUserIdStr === advisorIdStr;
+    const isAdmin = req.user.role === 'admin';
+
+    if (!isCreator && !isAdvisor && !isAdmin) {
       return res.status(403).json({ message: 'คุณไม่มีสิทธิ์เพิ่มสมาชิกในโปรเจคนี้' });
     }
 
     const addList = [];
     for (const mid of memberIds.map(toStrId)) {
       if (!mid) continue;
-      // ห้ามเพิ่ม advisor เป็นสมาชิก
       if (toStrId(project.advisor) === mid) continue;
-      // ข้ามคนที่อยู่แล้ว
       if (project.members.map(toStrId).includes(mid)) continue;
-      // รับเฉพาะนักศึกษา
       if (!(await isStudent(mid))) continue;
-      // ตรวจสอบว่าคนนี้ไม่ได้อยู่ในโปรเจคปีเดียวกันแล้ว
       const exists = await Project.exists({ academicYear: project.academicYear, members: mid });
       if (exists) continue;
       addList.push(mid);
@@ -381,8 +383,17 @@ export const removeMembers = async (req, res, next) => {
     const project = await Project.findById(id);
     if (!project) return res.status(404).json({ message: 'Project not found' });
 
-    // ตรวจสิทธิ์: ผู้สร้างหรือ admin เท่านั้น
-    if (project.createdBy.toString() !== req.user.id && req.user.role !== 'admin') {
+    // **[BUG FIX]** แก้ไขการตรวจสอบสิทธิ์ให้แม่นยำขึ้น
+    // ตรวจสอบสิทธิ์: ผู้สร้าง, อาจารย์ที่ปรึกษา, หรือ admin เท่านั้นที่ลบสมาชิกได้
+    const currentUserIdStr = req.user.id.toString();
+    const createdByIdStr = project.createdBy.toString();
+    const advisorIdStr = project.advisor.toString();
+
+    const isCreator = currentUserIdStr === createdByIdStr;
+    const isAdvisor = currentUserIdStr === advisorIdStr;
+    const isAdmin = req.user.role === 'admin';
+    
+    if (!isCreator && !isAdvisor && !isAdmin) {
       return res.status(403).json({ message: 'คุณไม่มีสิทธิ์ลบสมาชิกในโปรเจคนี้' });
     }
 
@@ -398,3 +409,4 @@ export const removeMembers = async (req, res, next) => {
     res.json(populated);
   } catch (err) { next(err); }
 };
+

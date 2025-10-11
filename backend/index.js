@@ -9,6 +9,7 @@ dotenv.config({ path: path.join(__dirname, 'server', 'config.env') });
 import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
+import cron from 'node-cron'; // **[NEW]** Import node-cron
 
 import authRoutes from './routes/auth.js';
 import appointmentsRoutes from './routes/appointments.js';
@@ -18,27 +19,37 @@ import projectRoutes from './routes/projects.js';
 import attachmentsRoutes from './routes/attachments.js';
 
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
+import { runReminderWorker } from './workers/reminderWorker.js'; // **[NEW]** Import the worker
 
 const app = express();
 
-// CORS + parsers
-app.use(cors({ origin: true, credentials: true, allowedHeaders: ['Content-Type','Authorization'] }));
+// **[IMPROVEMENT]** Use environment variable for CORS origin
+const corsOptions = {
+    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization']
+};
+app.use(cors(corsOptions));
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// debug
-// console.log('[ENV CHECK] MAIL_HOST=', process.env.MAIL_HOST);
-// console.log('[ENV CHECK] MAIL_USER=', process.env.MAIL_USER);
-// console.log('[ENV CHECK] MAIL_PORT=', process.env.MAIL_PORT, ' FROM=', process.env.MAIL_FROM, ' PASS?', !!process.env.MAIL_PASS);
-
-// DB connect
 const MONGO_URI = process.env.ATLAS_URI || process.env.MONGO_URI;
 if (!MONGO_URI) {
   console.error('No Mongo URI provided. Set ATLAS_URI or MONGO_URI in .env');
   process.exit(1);
 }
 mongoose.connect(MONGO_URI)
-  .then(() => console.log(' MongoDB connected'))
+  .then(() => {
+    console.log(' MongoDB connected');
+    
+    // **[NEW]** Schedule the reminder worker to run every minute
+    cron.schedule('* * * * *', () => {
+      console.log('Running appointment reminder worker...');
+      runReminderWorker();
+    });
+
+  })
   .catch((err) => {
     console.error('MongoDB connection error:', err.message);
     process.exit(1);
@@ -52,12 +63,11 @@ app.use('/api/teachers', teacherRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/attachments', attachmentsRoutes);
 
-// Health
 app.get(['/health', '/api/health'], (req, res) => res.json({ ok: true }));
 
-// Error handlers
 app.use(notFound);
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running at http://localhost:${PORT}`));
+
