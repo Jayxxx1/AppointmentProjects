@@ -4,7 +4,7 @@ import Appointment from '../models/Appointment.js';
 import Project from '../models/Project.js';
 import mongoose from 'mongoose';
 import { sendEmail } from '../utils/mailer.js';
-import { renderAppointmentEmail, buildIcs } from '../utils/emailTemplates.js';
+import { renderAppointmentEmail, buildIcs, renderRescheduleRequestEmail, renderRescheduleResponseEmail } from '../utils/emailTemplates.js';
 
 const toDateTime = (dateStr, timeStr) => new Date(`${dateStr}T${timeStr}:00+07:00`);
 
@@ -81,10 +81,10 @@ export const createAppointment = async (req, res, next) => {
 export const updateAppointmentStatus = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { status, reason } = req.body;
+        const { status, reason, summary } = req.body;
         const currentUserId = req.user.id;
 
-        if (!['approved', 'rejected', 'cancelled'].includes(status)) {
+        if (!['approved', 'rejected', 'cancelled', 'completed'].includes(status)) {
             return res.status(400).json({ message: 'สถานะไม่ถูกต้อง' });
         }
 
@@ -94,17 +94,41 @@ export const updateAppointmentStatus = async (req, res, next) => {
         const isAdvisor = appointment.project.advisor._id.equals(currentUserId);
         const isCreator = appointment.createBy._id.equals(currentUserId);
 
+        // Prevent changes when appointment is cancelled or rejected (only admin can override)
+        if (['cancelled', 'rejected'].includes(appointment.status) && req.user.role !== 'admin') {
+            return res.status(403).json({ message: 'การนัดหมายนี้ถูกยกเลิกหรือปฏิเสธแล้ว ไม่สามารถแก้ไขได้' });
+        }
+
         // Authorization check
         if (status === 'cancelled' && !isCreator) {
             return res.status(403).json({ message: 'เฉพาะผู้สร้างนัดหมายเท่านั้นที่สามารถยกเลิกได้' });
+        }
+        // completed can be set by advisor or creator (or admin)
+        if (status === 'completed' && !(isAdvisor || req.user.role === 'admin')) {
+            return res.status(403).json({ message: 'เฉพาะผู้เกี่ยวข้องเท่านั้นที่สามารถทำเครื่องหมายว่าเสร็จสิ้นได้' });
         }
         if (['approved', 'rejected'].includes(status) && !isAdvisor) {
             return res.status(403).json({ message: 'เฉพาะอาจารย์ที่ปรึกษาเท่านั้นที่สามารถอนุมัติหรือปฏิเสธได้' });
         }
         
+        // Prevent student from changing status of an approved appointment
+        if (appointment.status === 'approved' && !isAdvisor && req.user.role !== 'admin') {
+            return res.status(403).json({ message: 'ไม่สามารถเปลี่ยนสถานะนัดหมายที่อนุมัติแล้วได้' });
+        }
+
         appointment.status = status;
         if (status === 'rejected' && reason) {
             appointment.reason = reason;
+        }
+
+        // If marking completed and a summary is provided, save MeetingSummary
+        if (status === 'completed' && summary) {
+            try {
+                const MeetingSummary = (await import('../models/MeetingSummary.js')).default;
+                await MeetingSummary.create({ appointment: appointment._id, project: appointment.project._id, summary, createdBy: req.user.id });
+            } catch (msErr) {
+                console.error('Create MeetingSummary failed:', msErr?.message || msErr);
+            }
         }
 
         await appointment.save();
@@ -114,6 +138,7 @@ export const updateAppointmentStatus = async (req, res, next) => {
             let subject = '';
             let headline = '';
             let message = '';
+            let template = 'appointmentCreated.html'; // Default template
             const allEmails = getRelevantEmails(appointment);
 
             if (status === 'approved') {
@@ -121,6 +146,7 @@ export const updateAppointmentStatus = async (req, res, next) => {
                 headline = "นัดหมายของคุณได้รับการอนุมัติแล้ว";
                 message = `การนัดหมายเรื่อง "${appointment.title}" ในวันที่ ${appointment.date} เวลา ${appointment.startTime} ได้รับการอนุมัติจากอาจารย์ที่ปรึกษาแล้ว`;
             } else if (status === 'rejected') {
+                template = 'appointment-rejected.html';
                 subject = `[ถูกปฏิเสธ] นัดหมาย: ${appointment.title}`;
                 headline = "นัดหมายของคุณถูกปฏิเสธ";
                 message = `การนัดหมายเรื่อง "${appointment.title}" ถูกปฏิเสธโดยอาจารย์ที่ปรึกษา ${reason ? `ด้วยเหตุผล: ${reason}` : ''}`;
@@ -132,12 +158,12 @@ export const updateAppointmentStatus = async (req, res, next) => {
 
             if(subject) {
                 const icsContent = buildIcs(appointment);
-                const emailHtml = renderAppointmentEmail({ appointment, headline, message });
+                const emailHtml = renderAppointmentEmail({ appointment, headline, message, reason }, template); // Correctly pass template as the second argument
                 await sendEmail({
                     to: allEmails,
                     subject,
                     html: emailHtml,
-                    attachments: status === 'approved' ? [{ filename: 'invite.ics', content: icsContent, contentType: 'text/calendar' }] : []
+                    attachments: status === 'approved' ? [{ filename: 'บันทึกลงปฏิทิน.ics', content: icsContent, contentType: 'text/calendar' }] : []
                 });
             }
         } catch (mailErr) {
@@ -169,6 +195,16 @@ export const requestReschedule = async (req, res, next) => {
             return res.status(403).json({ message: 'เฉพาะอาจารย์ที่ปรึกษาเท่านั้นที่สามารถขอเลื่อนนัดได้' });
         }
 
+        // Prevent requesting reschedule when appointment is cancelled or rejected (only admin can override)
+        if (['cancelled', 'rejected'].includes(appointment.status) && req.user.role !== 'admin') {
+            return res.status(403).json({ message: 'ไม่สามารถขอเลื่อนนัดสำหรับนัดหมายที่ถูกยกเลิกหรือปฏิเสธแล้ว' });
+        }
+
+        // Prevent student from requesting reschedule on an approved appointment
+        if (appointment.status === 'approved' && !appointment.project.advisor._id.equals(req.user.id)) {
+            return res.status(403).json({ message: 'ไม่สามารถขอเลื่อนนัดสำหรับนัดหมายที่อนุมัติแล้วได้' });
+        }
+
         appointment.status = 'reschedule_requested';
         appointment.reschedule = {
             proposedBy: req.user.id,
@@ -184,9 +220,10 @@ export const requestReschedule = async (req, res, next) => {
             const uniqueEmails = [...new Set(studentEmails)];
 
             if (uniqueEmails.length > 0) {
-                const headline = "อาจารย์ที่ปรึกษาขอเลื่อนนัดหมาย";
-                const message = `อาจารย์ ${appointment.project.advisor.fullName || appointment.project.advisor.username} ได้ขอเลื่อนนัดหมายเรื่อง "${appointment.title}" เป็นวันที่ ${date} เวลา ${startTime} - ${endTime} กรุณาตรวจสอบและยืนยัน`;
-                const emailHtml = renderAppointmentEmail({ appointment, headline, message });
+                const emailHtml = renderRescheduleRequestEmail({
+                    appointment,
+                    rescheduleDetails: appointment.reschedule,
+                });
 
                 await sendEmail({
                     to: uniqueEmails,
@@ -206,86 +243,132 @@ export const requestReschedule = async (req, res, next) => {
 
 // **[NEW]** นักศึกษาตอบรับการขอเลื่อนนัด
 export const respondToReschedule = async (req, res, next) => {
-    try {
-        const { id } = req.params;
-        const { accepted } = req.body; // true or false
+  try {
+    const { id } = req.params;
+    const { accepted, reason } = req.body; // true or false, and optional reason
 
-        const appointment = await Appointment.findById(id).populate({ path: 'project', populate: { path: 'advisor members' } }).populate('createBy');
-        if (!appointment || appointment.status !== 'reschedule_requested' || !appointment.reschedule) {
-            return res.status(400).json({ message: 'ไม่มีคำขอเลื่อนนัดที่รอดำเนินการ' });
-        }
-        
-        if (!appointment.createBy._id.equals(req.user.id)) {
-             return res.status(403).json({ message: 'เฉพาะผู้สร้างนัดหมายเท่านั้นที่สามารถตอบรับได้' });
-        }
-        
-        let subject, headline, message;
-
-        if (accepted) {
-            // Accept the new time
-            const { date, startTime, endTime, startAt, endAt } = appointment.reschedule;
-            appointment.date = date;
-            appointment.startTime = startTime;
-            appointment.endTime = endTime;
-            appointment.startAt = startAt;
-            appointment.endAt = endAt;
-            appointment.status = 'approved';
-            
-            subject = `[ยืนยันเวลาใหม่] นัดหมาย: ${appointment.title}`;
-            headline = "การขอเลื่อนนัดได้รับการยอมรับ";
-            message = `นักศึกษาได้ยอมรับเวลาใหม่สำหรับการนัดหมายเรื่อง "${appointment.title}" นัดหมายใหม่คือวันที่ ${date} เวลา ${startTime}`;
-        } else {
-            // Decline the new time
-            appointment.status = 'approved'; // Revert to original approved time
-            subject = `[ปฏิเสธเวลาใหม่] นัดหมาย: ${appointment.title}`;
-            headline = "นักศึกษาปฏิเสธเวลาที่เสนอ";
-            message = `นักศึกษาไม่สะดวกในเวลาที่ท่านเสนอสำหรับนัดหมายเรื่อง "${appointment.title}" การนัดหมายยังคงเป็นวัน/เวลาเดิมคือ ${appointment.date} เวลา ${appointment.startTime}`;
-        }
-        
-        appointment.reschedule = null; // Clear the reschedule request
-        await appointment.save();
-
-        // Send confirmation email
-        try {
-            const allEmails = getRelevantEmails(appointment);
-            const icsContent = buildIcs(appointment);
-            const emailHtml = renderAppointmentEmail({ appointment, headline, message });
-
-            await sendEmail({
-                to: allEmails,
-                subject,
-                html: emailHtml,
-                attachments: accepted ? [{ filename: 'invite.ics', content: icsContent, contentType: 'text/calendar' }] : []
-            });
-        } catch(mailErr) {
-            console.error('Send reschedule response email failed:', mailErr?.message || mailErr);
-        }
-
-        res.json(appointment);
-    } catch(e) {
-        next(e);
+    const appointment = await Appointment.findById(id)
+      .populate({ path: "project", populate: { path: "advisor members" } })
+      .populate("createBy");
+    if (
+      !appointment ||
+      appointment.status !== "reschedule_requested" ||
+      !appointment.reschedule
+    ) {
+      return res
+        .status(400)
+        .json({ message: "ไม่มีคำขอเลื่อนนัดที่รอดำเนินการ" });
     }
+
+    // **[MODIFIED]** Allow any project member to respond, not just the creator
+    const isProjectMember = appointment.project.members.some((member) =>
+      member._id.equals(req.user.id)
+    );
+    if (!isProjectMember && !appointment.createBy._id.equals(req.user.id)) {
+      return res
+        .status(403)
+        .json({ message: "เฉพาะสมาชิกในโปรเจกต์เท่านั้นที่สามารถตอบรับได้" });
+    }
+
+    const advisorEmail = appointment.project.advisor.email;
+    const originalAppointmentDetails = {
+        date: appointment.date,
+        startTime: appointment.startTime,
+        endTime: appointment.endTime,
+    };
+
+
+    if (accepted) {
+      // Accept the new time
+      const { date, startTime, endTime, startAt, endAt } =
+        appointment.reschedule;
+      appointment.date = date;
+      appointment.startTime = startTime;
+      appointment.endTime = endTime;
+      appointment.startAt = startAt;
+      appointment.endAt = endAt;
+      appointment.status = "approved";
+    } else {
+      // Decline the new time, set status to rejected
+      appointment.status = "rejected"; 
+      appointment.reason = reason || "นักศึกษาปฏิเสธเวลาที่เสนอใหม่";
+    }
+
+    appointment.reschedule = null; // Clear the reschedule request
+    await appointment.save();
+
+    const responseMessage = accepted ? `นักศึกษาได้ยืนยันเวลาใหม่สำหรับการนัดหมายเรื่อง "${appointment.title}" เรียบร้อยแล้ว` : "การนัดหมายนี้ถูกยกเลิกเนื่องจากเวลาไม่ตรงกัน กรุณาสร้างนัดหมายใหม่ในภายหลัง";
+    // Send confirmation email to the advisor
+    try {
+      if (advisorEmail) {
+        const emailHtml = renderRescheduleResponseEmail({
+          appointment: accepted ? appointment : { ...appointment.toObject(), ...originalAppointmentDetails },
+          accepted,
+          reason,
+          message: responseMessage,
+        });
+
+        await sendEmail({
+          to: advisorEmail, // Only send to advisor
+          subject: accepted
+            ? `[ยืนยันเวลาใหม่] นัดหมาย: ${appointment.title}`
+            : `[ปฏิเสธเวลาใหม่] นัดหมาย: ${appointment.title}`,
+          html: emailHtml,
+          attachments: accepted
+            ? [
+                {
+                  filename: "บันทึกลงปฏิทิน.ics",
+                  content: buildIcs(appointment),
+                  contentType: "text/calendar",
+                },
+              ]
+            : [],
+        });
+      }
+    } catch (mailErr) {
+      console.error(
+        "Send reschedule response email failed:",
+        mailErr?.message || mailErr
+      );
+    }
+
+    res.json(appointment);
+  } catch (e) {
+    next(e);
+  }
 };
 
-// ... (getMyAppointments, getAllAppointments, getAppointmentById, updateAppointment (for details) remain largely the same)
-// The old deleteAppointment is now handled by updateAppointmentStatus with status 'cancelled'
-// ...
 
-// Get my appointments
 export const getMyAppointments = async (req, res, next) => {
   try {
     const userId = req.user.id;
+    const includeHistory =
+      String(req.query.history || "").toLowerCase() === "true";
     const myProjectIds = await Project.find({
       $or: [{ members: userId }, { advisor: userId }],
-    }).distinct('_id');
+    }).distinct("_id");
+
+    const statusFilter = includeHistory
+      ? {
+          $in: [
+            "pending",
+            "approved",
+            "rejected",
+            "cancelled",
+            "completed",
+            "reschedule_requested",
+            "expired",
+          ],
+        } // Keep 'reschedule_requested' in the main list
+      : { $in: ["pending", "approved", "reschedule_requested"] }; 
 
     const items = await Appointment.find({
       $or: [
         { createBy: userId },
         { participants: userId },
         { project: { $in: myProjectIds } },
-      ],
-      status: { $ne: 'cancelled' } // ไม่แสดงนัดหมายที่ยกเลิกแล้ว
+            ],
+            status: statusFilter,
     })
       .sort({ startAt: -1 })
       .populate('participants', '_id username email role fullName studentId')
@@ -304,9 +387,7 @@ export const getMyAppointments = async (req, res, next) => {
   } catch (e) { next(e); }
 };
 
-// Get single appointment
 export const getAppointmentById = async (req, res, next) => {
-    // This function can remain as is, it correctly checks for permissions.
     try {
         const { id } = req.params;
         const doc = await Appointment.findById(id)
@@ -337,11 +418,8 @@ export const getAppointmentById = async (req, res, next) => {
     }
 };
 
-// Update appointment DETAILS (not status)
 export const updateAppointment = async (req, res, next) => {
-    // This should only be for creators/admins to edit details like title, description etc.
-    // Status changes are handled by the new dedicated functions.
-    // ...
+
     try {
         const { id } = req.params;
         const updates = req.body;
@@ -349,9 +427,14 @@ export const updateAppointment = async (req, res, next) => {
         const doc = await Appointment.findById(id);
         if (!doc) return res.status(404).json({ message: 'Not found' });
     
-        // Allow Creator or admin to update
+        // Prevent edits to appointments with terminal or advisor-controlled statuses by non-admins
+        if (['completed', 'cancelled', 'rejected', 'approved'].includes(doc.status) && req.user.role !== 'admin') {
+            return res.status(403).json({ message: 'ไม่สามารถแก้ไขนัดหมายที่อยู่ในสถานะนี้ได้' });
+        }
+
+        // Allow Creator or admin to update pending appointments
         if (!doc.createBy.equals(req.user.id) && req.user.role !== 'admin') {
-          return res.status(403).json({ message: 'Only creator or admin can update details' });
+            return res.status(403).json({ message: 'Only creator or admin can update details' });
         }
         
         // Fields that can be updated
@@ -372,7 +455,7 @@ export const updateAppointment = async (req, res, next) => {
     }
 };
 
-// getAllAppointments (for admin) can remain the same
+// getAllAppointments (for admin) 
 export const getAllAppointments = async (req, res, next) => {
     try {
       const items = await Appointment.find({})
@@ -384,4 +467,3 @@ export const getAllAppointments = async (req, res, next) => {
       res.json(items);
     } catch (e) { next(e); }
   };
-

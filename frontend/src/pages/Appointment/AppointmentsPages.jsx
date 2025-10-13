@@ -10,26 +10,30 @@ export default function AppointmentsPage() {
   const { token } = useAuth();
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     if (!token) {
       setLoading(false);
       return;
     }
-    getAppointments({})
+    const params = showHistory ? { history: true } : {};
+    getAppointments(params)
       .then((data) => setAppointments(Array.isArray(data) ? data : (data?.items || [])))
       .catch((err) => {
         console.error("Load appointments error:", err?.response?.data || err?.message);
         setAppointments([]);
       })
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [token, showHistory]);
 
   const getStatusIcon = (status) => {
     switch (status.toLowerCase()) {
       case 'confirmed':
       case 'approved':
         return <IoMdCheckmarkCircleOutline className="text-green-500 text-xl" />;
+      case 'completed':
+        return <IoMdCheckmarkCircleOutline className="text-sky-500 text-xl" />;
       case 'cancelled':
       case 'rejected':
         return <IoMdCloseCircleOutline className="text-red-500 text-xl" />;
@@ -44,6 +48,8 @@ export default function AppointmentsPage() {
       case 'confirmed':
       case 'approved':
         return 'from-green-500 to-emerald-500';
+      case 'completed':
+        return 'from-sky-500 to-indigo-500';
       case 'cancelled':
       case 'rejected':
         return 'from-red-500 to-pink-500';
@@ -59,6 +65,8 @@ export default function AppointmentsPage() {
         return 'ยืนยันแล้ว';
       case 'approved':
         return 'อนุมัติแล้ว';
+      case 'completed':
+        return 'เสร็จสิ้นการประชุม';
       case 'cancelled':
         return 'ยกเลิกแล้ว';
       case 'rejected':
@@ -133,13 +141,25 @@ export default function AppointmentsPage() {
                     </p>
                   </div>
                 </div>
-                <Link
-                  to="/appointments/create"
-                  className="group flex items-center px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 hover:shadow-green-500/25"
-                >
-                  <AiFillPlusCircle className="text-xl mr-2 group-hover:rotate-90 transition-transform duration-300" />
-                  <span className="hidden sm:inline">สร้างนัดหมายใหม่</span>
-                </Link>
+                <div className="flex items-center gap-3">
+                  <Link
+                    to="/appointments/create"
+                    className="group flex items-center px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 hover:shadow-green-500/25"
+                  >
+                    <AiFillPlusCircle className="text-xl mr-2 group-hover:rotate-90 transition-transform duration-300" />
+                    <span className="hidden sm:inline">สร้างนัดหมายใหม่</span>
+                  </Link>
+                  <button
+                    onClick={() => {
+                      // toggle history and reload
+                      const newVal = !showHistory;
+                      setShowHistory(newVal);
+                    }}
+                    className={`inline-flex items-center px-4 py-2 rounded-xl border font-medium ${showHistory ? 'bg-gray-100 text-gray-800' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                  >
+                    ประวัติ
+                  </button>
+                </div>
               </div>
             </div>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -184,7 +204,6 @@ export default function AppointmentsPage() {
                           {getStatusText(appointment.status)}
                         </span>
                       </div>
-                       {/* **[BUG FIX]** แก้ไขการซ้อนกันของ <button> และ <Link> */}
                       <Link
                         to={`/appointments/${appointment._id}`}
                         className="px-4 py-2 text-sm bg-gradient-to-r from-gray-100 to-gray-200 hover:from-blue-500 hover:to-purple-500 hover:text-white rounded-lg transition-all duration-300 font-medium"

@@ -21,6 +21,7 @@ import ProjectDetail from "./components/ProjectDetail.jsx";
 import AppointmentDetail from "./components/AppointmentDetail.jsx";
 import LandingPage from "./pages/Main/LandingPage.jsx"; // **[REFACTOR]** Import LandingPage
 import { useAuth } from "./contexts/AuthContext.jsx";
+import ReschedulePage from "./pages/Appointment/ReschedulePage.jsx";
 
 const AppLayout = () => {
   const { isAuthenticated, loading } = useAuth();
@@ -59,6 +60,7 @@ export default function App() {
         <Route path="appointments" element={<AppointmentsPages />} />
         <Route path="appointments/create" element={<CreateAppointment />} />
         <Route path="appointments/:id" element={<AppointmentDetail />} />
+        <Route path="appointments/:id/reschedule" element={<ReschedulePage />} />
         <Route path="projects" element={<ProjectsPage />} />
         <Route path="projects/create" element={<CreateProject />} />
         <Route path="projects/details/:id" element={<ProjectDetail />} />

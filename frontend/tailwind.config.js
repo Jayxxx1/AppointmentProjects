@@ -1,17 +1,10 @@
 /** @type {import('tailwindcss').Config} */
-
-export default {
+const config = {
   content: [
     "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}", 
-    "./src/components/**/*.{js,ts,jsx,tsx}", 
+    "./src/**/*.{js,ts,jsx,tsx}",
+    "./src/components/**/*.{js,ts,jsx,tsx}",
   ],
-  theme: {
-    extend: {},
-  },
-  plugins: [],
-};
-module.exports = {
   theme: {
     extend: {
       fontFamily: {
@@ -20,4 +13,7 @@ module.exports = {
       },
     },
   },
-}
+  plugins: [],
+};
+
+export default config;

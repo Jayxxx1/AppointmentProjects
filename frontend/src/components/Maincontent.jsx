@@ -1,6 +1,8 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext.jsx";
+import appointmentService from "../services/appointmentService";
+
 function UpcomingAppointments() {
     const [upcoming, setUpcoming] = useState([]);
     const [loading, setLoading] = useState(true);

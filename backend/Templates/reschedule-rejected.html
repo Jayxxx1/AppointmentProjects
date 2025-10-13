@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:linear-gradient(135deg,#ef4444 0%,#dc2626 100%);min-height:100vh">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 20px">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.15);overflow:hidden">
+          <!-- Header -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#ef4444 0%,#dc2626 100%);padding:32px 40px;text-align:center">
+              <div style="background:rgba(255,255,255,0.2);width:64px;height:64px;border-radius:50%;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(10px)">
+                <span style="font-size:32px">❌</span>
+              </div>
+              <h1 style="margin:0;color:#ffffff;font-size:28px;font-weight:600;letter-spacing:-0.5px">คำขอเลื่อนนัดถูกปฏิเสธ</h1>
+            </td>
+          </tr>
+          
+          <!-- Content -->
+          <tr>
+            <td style="padding:40px">
+              <p style="margin:0 0 24px;color:#4a5568;font-size:16px;line-height:1.6">
+                นักศึกษาได้<strong>ปฏิเสธ</strong>คำขอเลื่อนนัดหมายสำหรับ <strong>{{title}}</strong> ของโปรเจกต์ <strong>{{projectName}}</strong>
+              </p>
+              
+              <!-- Reason for rejection -->
+              {{#if reason}}
+              <div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:20px;border-radius:8px;margin-bottom:24px;">
+                <h3 style="margin:0 0 8px;color:#b45309;font-size:16px;font-weight:600;">เหตุผลจากนักศึกษา:</h3>
+                <p style="margin:0;color:#78350f;font-size:15px;line-height:1.6;">"{{reason}}"</p>
+              </div>
+              {{/if}}
+              
+              <p style="margin:0 0 24px;color:#4a5568;font-size:16px;line-height:1.6;text-align:center;">
+                นัดหมายนี้ถูกยกเลิกเนื่องจากเวลาไม่ตรงกัน กรุณาสร้างนัดหมายใหม่ในภายหลัง
+              </p>
+              
+              <!-- CTA Button -->
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding:8px 0">
+                    <a href="{{detailUrl}}" 
+                       style="display:inline-block;background:linear-gradient(135deg,#06b6d4 0%,#3b82f6 100%);color:#ffffff;text-decoration:none;padding:14px 36px;border-radius:12px;font-weight:600;font-size:15px;box-shadow:0 8px 20px rgba(59,130,246,0.15);">
+                      กลับไปที่หน้านัดหมาย →
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="background:#f7fafc;padding:24px 40px;border-top:1px solid #e2e8f0">
+              <p style="margin:0;color:#718096;font-size:13px;line-height:1.6;text-align:center;">
+                นัดหมายนี้ได้ถูกยกเลิกแล้ว
+              </p>
+            </td>
+          </tr>
+        </table>
+        
+        <!-- Email Footer -->
+        <table width="600" cellpadding="0" cellspacing="0" style="margin-top:24px">
+          <tr>
+            <td align="center" style="padding:0 20px">
+              <p style="margin:0;color:#ffffff;font-size:13px;opacity:0.9">
+                อีเมลนี้ส่งอัตโนมัติ กรุณาอย่าตอบกลับ
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

@@ -19,7 +19,7 @@ import projectRoutes from './routes/projects.js';
 import attachmentsRoutes from './routes/attachments.js';
 
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
-import { runReminderWorker } from './workers/reminderWorker.js'; // **[NEW]** Import the worker
+import { runReminderWorker } from './workers/reminderWorker.js'; 
 
 const app = express();
 
@@ -43,9 +43,8 @@ mongoose.connect(MONGO_URI)
   .then(() => {
     console.log(' MongoDB connected');
     
-    // **[NEW]** Schedule the reminder worker to run every minute
     cron.schedule('* * * * *', () => {
-      console.log('Running appointment reminder worker...');
+      // console.log('Running appointment reminder worker...');
       runReminderWorker();
     });
 
