@@ -44,6 +44,13 @@ const appointmentSchema = new mongoose.Schema({
   // Field ใหม่สำหรับเช็คว่าส่งอีเมลแจ้งเตือนไปแล้วหรือยัง
   reminderSent: { type: Boolean, default: false },
 
+  // If this appointment was created as a follow-up of a meeting summary
+  isNextAppointment: { type: Boolean, default: false, index: true },
+  // Reference to the previous appointment (the one which spawned this follow-up)
+  previousAppointment: { type: mongoose.Schema.Types.ObjectId, ref: 'Appointment', default: null },
+  // If this appointment was created from a MeetingSummary, reference it
+  meetingSummary: { type: mongoose.Schema.Types.ObjectId, ref: 'MeetingSummary', default: null },
+
   activity: [
     {
       at: { type: Date, default: Date.now },

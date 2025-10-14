@@ -297,7 +297,7 @@ export default function ProjectDetail() {
   
   if (!canEdit) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center">
+      <div className="min-h-full bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center">
         <div className="bg-white/80 backdrop-blur p-8 rounded-2xl shadow-xl text-center border border-red-100">
           <div className="text-red-600 font-semibold mb-2">ไม่มีสิทธิ์เข้าถึงหน้านี้</div>
           <div className="text-gray-600 mb-6">เฉพาะผู้สร้างโปรเจค, อาจารย์ที่ปรึกษา, หรือผู้ดูแลระบบเท่านั้นที่สามารถแก้ไขโปรเจคได้</div>

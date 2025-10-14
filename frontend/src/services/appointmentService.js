@@ -28,6 +28,11 @@ client.interceptors.request.use((config) => {
 
 export const appointmentService = {
   async create(data) {
+    // If files are passed inside data.files or second argument, send multipart/form-data
+    if (data instanceof FormData) {
+      const r = await client.post('/api/appointments', data, { headers: { 'Content-Type': 'multipart/form-data' } });
+      return r.data;
+    }
     const r = await client.post('/api/appointments', data);
     return r.data;
   },
@@ -46,6 +51,11 @@ export const appointmentService = {
     return r.data;
   },
   async update(id, data) {
+    // support multipart when caller passes a FormData instance
+    if (data instanceof FormData) {
+      const r = await client.patch(`/api/appointments/${encodeURIComponent(String(id))}`, data, { headers: { 'Content-Type': 'multipart/form-data' } });
+      return r.data;
+    }
     const r = await client.patch(`/api/appointments/${encodeURIComponent(String(id))}`, data);
     return r.data;
   },

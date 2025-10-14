@@ -17,6 +17,7 @@ import adminRoutes from './routes/admin.js';
 import teacherRoutes from './routes/teachers.js';
 import projectRoutes from './routes/projects.js';
 import attachmentsRoutes from './routes/attachments.js';
+import meetingSummariesRoutes from './routes/meetingsummaries.js';
 
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 import { runReminderWorker } from './workers/reminderWorker.js'; 
@@ -61,6 +62,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/teachers', teacherRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/attachments', attachmentsRoutes);
+app.use('/api/meetingsummaries', meetingSummariesRoutes);
 
 app.get(['/health', '/api/health'], (req, res) => res.json({ ok: true }));
 

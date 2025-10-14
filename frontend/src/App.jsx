@@ -8,6 +8,7 @@ import AppointmentsPages from "./pages/Appointment/AppointmentsPages.jsx";
 import CreateAppointment from "./pages/Appointment/CreateAppointments.jsx";
 import ProtectedRoute from "./components/Navigation/ProtectedRoute";
 import MeetSumPage from "./pages/Main/MeetSumPage.jsx";
+import MeetSummaryDetail from "./pages/Main/MeetSummaryDetail.jsx";
 import ProjectsPage from "./pages/Project/ProjectPage.jsx";
 import AboutPages from "./pages/Main/AboutPage.jsx";
 import CreateProject from "./pages/Project/CreateProject.jsx";
@@ -65,6 +66,7 @@ export default function App() {
         <Route path="projects/create" element={<CreateProject />} />
         <Route path="projects/details/:id" element={<ProjectDetail />} />
         <Route path="meetsummary" element={<MeetSumPage />} />
+  <Route path="meetsummary/:id" element={<MeetSummaryDetail />} />
       </Route>
     </Routes>
   );

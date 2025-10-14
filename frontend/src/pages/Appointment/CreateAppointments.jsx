@@ -190,7 +190,17 @@ export default function CreateAppointment() {
         payload.participantEmails = [selectedAdvisor.email];
       }
 
-      await appointmentService.create(payload, files); 
+      // If files attached, build FormData for multipart upload (route uses upload.array('files'))
+      if (Array.isArray(files) && files.length > 0) {
+        const fd = new FormData();
+        Object.keys(payload).forEach(k => {
+          if (payload[k] !== undefined && payload[k] !== null) fd.append(k, payload[k]);
+        });
+        for (const f of files) fd.append('files', f);
+        await appointmentService.create(fd);
+      } else {
+        await appointmentService.create(payload);
+      }
 
       setShowPreview(false);
       setFeedbackMsg("สร้างนัดหมายสำเร็จ");

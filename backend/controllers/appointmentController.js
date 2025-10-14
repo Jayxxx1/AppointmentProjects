@@ -42,15 +42,60 @@ export const createAppointment = async (req, res, next) => {
     const overlap = await Appointment.findOne({ project: projectId, status: { $in: ['pending', 'approved'] }, startAt: { $lt: endAt }, endAt: { $gt: startAt } });
     if (overlap) return res.status(409).json({ message: 'ช่วงเวลานี้มีการนัดหมายอื่นอยู่แล้ว' });
 
-    const doc = await Appointment.create({
-        title, description, date, startTime, endTime, startAt, endAt, meetingType, location,
-        meetingNotes: note,
-        project: projectId,
-        createBy: req.user.id,
-        participants: proj.members, 
-    });
-    
-    // ... (file attachment logic remains the same)
+  const extra = {};
+  if (req.body.previousAppointment) extra.previousAppointment = req.body.previousAppointment;
+  if (req.body.isNextAppointment) extra.isNextAppointment = Boolean(req.body.isNextAppointment);
+  // If client provided a meetingSummary id when creating an appointment (e.g., creating a follow-up),
+  // verify the MeetingSummary actually exists before attaching it to the appointment document.
+  if (req.body.meetingSummary) {
+    try {
+      const MeetingSummary = (await import('../models/MeetingSummary.js')).default;
+      const msExists = await MeetingSummary.findById(req.body.meetingSummary).lean();
+      if (msExists) extra.meetingSummary = req.body.meetingSummary;
+      else console.warn('Ignored non-existing meetingSummary id when creating appointment:', req.body.meetingSummary);
+    } catch (msCheckErr) {
+      console.error('Failed to verify meetingSummary during appointment creation:', msCheckErr);
+    }
+  }
+
+  const doc = await Appointment.create({
+    title, description, date, startTime, endTime, startAt, endAt, meetingType, location,
+    meetingNotes: note,
+    project: projectId,
+    createBy: req.user.id,
+    participants: proj.members,
+    ...extra,
+  });
+    // Attach uploaded files (if any) to this appointment using GridFS + Attachment documents
+    if (Array.isArray(req.files) && req.files.length) {
+      try {
+        const bucket = getBucket();
+        for (const f of req.files) {
+          const up = bucket.openUploadStream(f.originalname, {
+            contentType: f.mimetype,
+            metadata: { ownerType: 'appointment', ownerId: doc._id },
+          });
+          up.end(f.buffer);
+          const fileId = await new Promise((resolve, reject) => {
+            up.on('finish', () => resolve(up.id));
+            up.on('error', reject);
+          });
+          await Attachment.create({
+            ownerType: 'appointment',
+            ownerId: doc._id,
+            originalName: f.originalname,
+            mimeType: f.mimetype,
+            size: f.size,
+            gridFsFileId: fileId,
+            uploadedBy: req.user.id,
+            expireAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          });
+        }
+      } catch (attachErr) {
+        // do not fail the whole request for attachment errors, but log
+        console.error('Attach files for appointment failed:', attachErr?.message || attachErr);
+      }
+    }
 
     const populated = await Appointment.findById(doc._id).populate('createBy').populate({ path: 'project', populate: { path: 'advisor members' } });
 
@@ -58,16 +103,16 @@ export const createAppointment = async (req, res, next) => {
     try {
         const advisorEmail = populated?.project?.advisor?.email;
         if (advisorEmail) {
-            const emailHtml = renderAppointmentEmail({
-                appointment: populated,
-                headline: "คุณมีการนัดหมายใหม่รอดำเนินการ",
-                message: `${populated.createBy.fullName || populated.createBy.username} ได้สร้างนัดหมายใหม่สำหรับโปรเจกต์ "${populated.project.name}" และกำลังรอการอนุมัติจากคุณ`
-            });
-            await sendEmail({
-                to: advisorEmail,
-                subject: `[รออนุมัติ] นัดหมายใหม่: ${populated.title}`,
-                html: emailHtml,
-            });
+      // If this appointment is a follow-up (isNextAppointment or previousAppointment set) use a different headline/subject
+      const isFollowUp = !!(populated.isNextAppointment || populated.previousAppointment);
+      const headline = isFollowUp ? 'สร้างนัดหมายติดตาม (Follow-up)' : 'คุณมีการนัดหมายใหม่รอดำเนินการ';
+      const message = isFollowUp
+        ? `${populated.createBy.fullName || populated.createBy.username} ได้สร้างนัดหมายครั้งถัดไปสำหรับโปรเจกต์ "${populated.project.name}" (เป็นการติดตามจากการประชุมก่อนหน้า)`
+        : `${populated.createBy.fullName || populated.createBy.username} ได้สร้างนัดหมายใหม่สำหรับโปรเจกต์ "${populated.project.name}" และกำลังรอการอนุมัติจากคุณ`;
+      const subject = isFollowUp ? `[นัดหมายติดตาม] นัดหมาย: ${populated.title}` : `[รออนุมัติ] นัดหมายใหม่: ${populated.title}`;
+
+      const emailHtml = renderAppointmentEmail({ appointment: populated, headline, message });
+      await sendEmail({ to: advisorEmail, subject, html: emailHtml });
         }
     } catch (mailErr) {
         console.error('Send creation email failed:', mailErr?.message || mailErr);
@@ -94,6 +139,11 @@ export const updateAppointmentStatus = async (req, res, next) => {
         const isAdvisor = appointment.project.advisor._id.equals(currentUserId);
         const isCreator = appointment.createBy._id.equals(currentUserId);
 
+    // Prevent changes to an already-approved appointment by non-advisor/non-admin
+    if (appointment.status === 'approved' && req.user.role !== 'admin' && !isAdvisor) {
+      return res.status(403).json({ message: 'ไม่สามารถแก้ไขนัดหมายที่ได้รับการอนุมัติแล้วได้' });
+    }
+
         // Prevent changes when appointment is cancelled or rejected (only admin can override)
         if (['cancelled', 'rejected'].includes(appointment.status) && req.user.role !== 'admin') {
             return res.status(403).json({ message: 'การนัดหมายนี้ถูกยกเลิกหรือปฏิเสธแล้ว ไม่สามารถแก้ไขได้' });
@@ -111,24 +161,90 @@ export const updateAppointmentStatus = async (req, res, next) => {
             return res.status(403).json({ message: 'เฉพาะอาจารย์ที่ปรึกษาเท่านั้นที่สามารถอนุมัติหรือปฏิเสธได้' });
         }
         
-        // Prevent student from changing status of an approved appointment
-        if (appointment.status === 'approved' && !isAdvisor && req.user.role !== 'admin') {
-            return res.status(403).json({ message: 'ไม่สามารถเปลี่ยนสถานะนัดหมายที่อนุมัติแล้วได้' });
-        }
-
         appointment.status = status;
         if (status === 'rejected' && reason) {
             appointment.reason = reason;
         }
 
-        // If marking completed and a summary is provided, save MeetingSummary
+            // If marking completed and a summary is provided, save MeetingSummary
         if (status === 'completed' && summary) {
+          // If the appointment already has a meetingSummary attached, verify it actually exists.
+          // It's possible the appointment has a stale reference (the MeetingSummary doc was removed)
+          // In that case we should clear the stale reference and allow creation of a new summary.
+          if (appointment.meetingSummary) {
             try {
-                const MeetingSummary = (await import('../models/MeetingSummary.js')).default;
-                await MeetingSummary.create({ appointment: appointment._id, project: appointment.project._id, summary, createdBy: req.user.id });
-            } catch (msErr) {
-                console.error('Create MeetingSummary failed:', msErr?.message || msErr);
+              const MeetingSummary = (await import('../models/MeetingSummary.js')).default;
+              const exists = await MeetingSummary.findById(appointment.meetingSummary).lean();
+              if (exists) {
+                return res.status(409).json({ message: 'สรุปการประชุมสำหรับนัดหมายนี้มีแล้ว' });
+              }
+              // stale reference: clear it on the persisted appointment so we can create a new summary
+              try {
+                await Appointment.findByIdAndUpdate(appointment._id, { $unset: { meetingSummary: '' } }).exec();
+                appointment.meetingSummary = undefined;
+              } catch (unsetErr) {
+                console.error('Failed to clear stale meetingSummary reference:', unsetErr);
+              }
+            } catch (checkErr) {
+              console.error('Failed to verify existing MeetingSummary:', checkErr);
             }
+          }
+          try {
+            const MeetingSummary = (await import('../models/MeetingSummary.js')).default;
+            // Accept optional fields from body: homework, nextMeetingDate, attachments
+            const homework = req.body.homework;
+            const nextMeetingDate = req.body.nextMeetingDate ? new Date(req.body.nextMeetingDate) : undefined;
+            const attachments = Array.isArray(req.body.attachments) ? req.body.attachments : [];
+
+            // Create the MeetingSummary first. The model now enforces a unique index on appointment,
+            // which will throw if another summary already exists. However in concurrent scenarios we
+            // also need to atomically attach the created summary to the Appointment document. To do this
+            // we create the summary, then attempt an atomic conditional update on Appointment that
+            // sets meetingSummary only if it is currently null/undefined.
+            const created = await MeetingSummary.create({
+              appointment: appointment._id,
+              project: appointment.project._id,
+              summary,
+              homework,
+              nextMeetingDate,
+              attachments,
+              createdBy: req.user.id,
+            });
+
+            // Try to set appointment.meetingSummary only if it is not already set (atomic)
+            const updatedAppointment = await Appointment.findOneAndUpdate(
+              { _id: appointment._id, $or: [ { meetingSummary: { $exists: false } }, { meetingSummary: null } ] },
+              { $set: { meetingSummary: created._id } },
+              { new: true }
+            );
+
+            // If the conditional update didn't match, it means another summary was attached concurrently
+            if (!updatedAppointment) {
+              // debugging: log current appointment.meetingSummary value and whether MeetingSummary exists
+              try {
+                const current = await Appointment.findById(appointment._id).lean();
+                const ref = current && current.meetingSummary ? String(current.meetingSummary) : current && current.meetingSummary === null ? null : undefined;
+                const existsNow = ref ? await MeetingSummary.findById(ref).lean() : null;
+                console.error('MeetingSummary attach failed: appointment.meetingSummary=', ref, 'meetingSummary doc exists=', !!existsNow);
+              } catch (dbgErr) {
+                console.error('Debugging check failed:', dbgErr);
+              }
+              // clean up the created MeetingSummary because it's a duplicate
+              try { await MeetingSummary.findByIdAndDelete(created._id).exec(); } catch (delErr) { console.error('Failed to cleanup duplicate MeetingSummary:', delErr); }
+              return res.status(409).json({ message: 'สรุปการประชุมสำหรับนัดหมายนี้มีแล้ว' });
+            }
+
+            // update our local appointment reference for subsequent processing and email logic
+            appointment.meetingSummary = created._id;
+          } catch (msErr) {
+            // If the unique index on MeetingSummary.appointment triggered a duplicate key error,
+            // surface a 409 to the client. Otherwise log the error and continue without failing the
+            // entire request (to keep consistent with the previous behaviour).
+            if (msErr && msErr.code === 11000) {
+              return res.status(409).json({ message: 'สรุปการประชุมสำหรับนัดหมายนี้มีแล้ว' });
+            }
+            console.error('Create MeetingSummary failed:', msErr?.message || msErr);
+          }
         }
 
         await appointment.save();
@@ -146,7 +262,7 @@ export const updateAppointmentStatus = async (req, res, next) => {
                 headline = "นัดหมายของคุณได้รับการอนุมัติแล้ว";
                 message = `การนัดหมายเรื่อง "${appointment.title}" ในวันที่ ${appointment.date} เวลา ${appointment.startTime} ได้รับการอนุมัติจากอาจารย์ที่ปรึกษาแล้ว`;
             } else if (status === 'rejected') {
-                template = 'appointment-rejected.html';
+                template = 'appointment-rejected.html'; // Use the new rejection template
                 subject = `[ถูกปฏิเสธ] นัดหมาย: ${appointment.title}`;
                 headline = "นัดหมายของคุณถูกปฏิเสธ";
                 message = `การนัดหมายเรื่อง "${appointment.title}" ถูกปฏิเสธโดยอาจารย์ที่ปรึกษา ${reason ? `ด้วยเหตุผล: ${reason}` : ''}`;
@@ -158,7 +274,7 @@ export const updateAppointmentStatus = async (req, res, next) => {
 
             if(subject) {
                 const icsContent = buildIcs(appointment);
-                const emailHtml = renderAppointmentEmail({ appointment, headline, message, reason }, template); // Correctly pass template as the second argument
+                const emailHtml = renderAppointmentEmail({ appointment, headline, message, reason, template });
                 await sendEmail({
                     to: allEmails,
                     subject,
@@ -198,11 +314,6 @@ export const requestReschedule = async (req, res, next) => {
         // Prevent requesting reschedule when appointment is cancelled or rejected (only admin can override)
         if (['cancelled', 'rejected'].includes(appointment.status) && req.user.role !== 'admin') {
             return res.status(403).json({ message: 'ไม่สามารถขอเลื่อนนัดสำหรับนัดหมายที่ถูกยกเลิกหรือปฏิเสธแล้ว' });
-        }
-
-        // Prevent student from requesting reschedule on an approved appointment
-        if (appointment.status === 'approved' && !appointment.project.advisor._id.equals(req.user.id)) {
-            return res.status(403).json({ message: 'ไม่สามารถขอเลื่อนนัดสำหรับนัดหมายที่อนุมัติแล้วได้' });
         }
 
         appointment.status = 'reschedule_requested';
@@ -289,15 +400,13 @@ export const respondToReschedule = async (req, res, next) => {
       appointment.endAt = endAt;
       appointment.status = "approved";
     } else {
-      // Decline the new time, set status to rejected
-      appointment.status = "rejected"; 
-      appointment.reason = reason || "นักศึกษาปฏิเสธเวลาที่เสนอใหม่";
+      // Decline the new time
+      appointment.status = "rejected"; // **[MODIFIED]** Set status to rejected instead of approved
     }
 
     appointment.reschedule = null; // Clear the reschedule request
     await appointment.save();
 
-    const responseMessage = accepted ? `นักศึกษาได้ยืนยันเวลาใหม่สำหรับการนัดหมายเรื่อง "${appointment.title}" เรียบร้อยแล้ว` : "การนัดหมายนี้ถูกยกเลิกเนื่องจากเวลาไม่ตรงกัน กรุณาสร้างนัดหมายใหม่ในภายหลัง";
     // Send confirmation email to the advisor
     try {
       if (advisorEmail) {
@@ -305,7 +414,6 @@ export const respondToReschedule = async (req, res, next) => {
           appointment: accepted ? appointment : { ...appointment.toObject(), ...originalAppointmentDetails },
           accepted,
           reason,
-          message: responseMessage,
         });
 
         await sendEmail({
@@ -359,8 +467,8 @@ export const getMyAppointments = async (req, res, next) => {
             "reschedule_requested",
             "expired",
           ],
-        } // Keep 'reschedule_requested' in the main list
-      : { $in: ["pending", "approved", "reschedule_requested"] }; 
+        }
+      : { $nin: ["cancelled", "completed", "rejected"] }; // **[MODIFIED]** Keep 'reschedule_requested' in the main list
 
     const items = await Appointment.find({
       $or: [
@@ -410,7 +518,7 @@ export const getAppointmentById = async (req, res, next) => {
         const isAdmin = req.user.role === 'admin';
 
         if (!(isParticipant || isCreator || isAdvisor || isAdmin)) {
-            return res.status(403).json({ message: 'Forbidden' });
+            return res.status(403).json({ message: 'ไม่มีสิทธิ์เข้าถึงหน้านี้' });
         }
         res.json(doc.toObject ? doc.toObject() : doc);
     } catch (e) {
@@ -427,14 +535,16 @@ export const updateAppointment = async (req, res, next) => {
         const doc = await Appointment.findById(id);
         if (!doc) return res.status(404).json({ message: 'Not found' });
     
-        // Prevent edits to appointments with terminal or advisor-controlled statuses by non-admins
-        if (['completed', 'cancelled', 'rejected', 'approved'].includes(doc.status) && req.user.role !== 'admin') {
-            return res.status(403).json({ message: 'ไม่สามารถแก้ไขนัดหมายที่อยู่ในสถานะนี้ได้' });
-        }
+                // Prevent edits to completed, cancelled or rejected appointments by non-admins
+                if (['completed','cancelled','rejected'].includes(doc.status) && req.user.role !== 'admin') {
+                    return res.status(403).json({ message: 'ไม่สามารถแก้ไขนัดหมายที่เสร็จสิ้น ยกเลิก หรือปฏิเสธแล้วได้' });
+                }
 
-        // Allow Creator or admin to update pending appointments
-        if (!doc.createBy.equals(req.user.id) && req.user.role !== 'admin') {
-            return res.status(403).json({ message: 'Only creator or admin can update details' });
+        // Allow Creator, admin, or project advisor (for next appointments)
+        const proj = await Project.findById(doc.project);
+        const isAdvisorForProject = proj?.advisor?.toString() === String(req.user.id);
+        if (!doc.createBy.equals(req.user.id) && req.user.role !== 'admin' && !(doc.isNextAppointment && isAdvisorForProject)) {
+          return res.status(403).json({ message: 'Only creator or admin (or advisor for follow-up) can update details' });
         }
         
         // Fields that can be updated
@@ -447,6 +557,36 @@ export const updateAppointment = async (req, res, next) => {
         });
 
         await doc.save();
+        // If files were uploaded, attach them to this appointment
+        if (Array.isArray(req.files) && req.files.length) {
+          try {
+            const bucket = getBucket();
+            for (const f of req.files) {
+              const up = bucket.openUploadStream(f.originalname, {
+                contentType: f.mimetype,
+                metadata: { ownerType: 'appointment', ownerId: doc._id },
+              });
+              up.end(f.buffer);
+              const fileId = await new Promise((resolve, reject) => {
+                up.on('finish', () => resolve(up.id));
+                up.on('error', reject);
+              });
+              await Attachment.create({
+                ownerType: 'appointment',
+                ownerId: doc._id,
+                originalName: f.originalname,
+                mimeType: f.mimetype,
+                size: f.size,
+                gridFsFileId: fileId,
+                uploadedBy: req.user.id,
+                expireAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+              });
+            }
+          } catch (attachErr) {
+            console.error('Attach files for appointment (update) failed:', attachErr?.message || attachErr);
+          }
+        }
+
         const populated = await Appointment.findById(id).populate('createBy').populate({ path: 'project', populate: { path: 'advisor members' } });
         res.json(populated);
 
@@ -467,3 +607,4 @@ export const getAllAppointments = async (req, res, next) => {
       res.json(items);
     } catch (e) { next(e); }
   };
+

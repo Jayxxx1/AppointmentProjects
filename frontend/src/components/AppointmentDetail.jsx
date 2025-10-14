@@ -1,6 +1,6 @@
 // src/pages/AppointmentDetail.jsx
 import React, { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { appointmentService } from "../services/appointmentService";
 import { attachmentService } from "../services/attachmentService";
 
@@ -30,6 +30,8 @@ import RescheduleModal from './Modal/RescheduleModal';
 import RejectModal from './Modal/RejectModal';
 import SummaryModal from './Modal/SummaryModal';
 import RejectRescheduleModal from './Modal/RejectRescheduleModal'; // Import the new modal
+import NextAppointmentInfoModal from './Modal/NextAppointmentInfoModal';
+import LoadingOverlay from './LoadingOverlay';
 
 export default function AppointmentDetail() {
   const { id } = useParams();
@@ -44,6 +46,8 @@ export default function AppointmentDetail() {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [showRejectRescheduleModal, setShowRejectRescheduleModal] = useState(false); // State for the new modal
+  const [showNextInfoModal, setShowNextInfoModal] = useState(false);
+  const [nextInfo, setNextInfo] = useState({ previous: null, summary: null });
   const [attachErr, setAttachErr] = useState("");
   const [form, setForm] = useState({
     title: "",
@@ -57,6 +61,8 @@ export default function AppointmentDetail() {
     participants: [],
   });
   const [error, setError] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionMessage, setActionMessage] = useState('');
 
   // Current user for permission checks
   const { user } = useAuth();
@@ -112,7 +118,7 @@ export default function AppointmentDetail() {
       } catch (err) {
         if (!alive) return;
         setError(
-          err?.response?.data?.message || err?.message || "ไม่พบข้อมูลนัดหมาย"
+          err?.response?.data?.message || err?.message || "เกิดข้อผิดพลาด: ไม่พบข้อมูลนัดหมายนี้"
         );
       } finally {
         if (alive) setLoading(false);
@@ -218,7 +224,7 @@ export default function AppointmentDetail() {
     }
   };
 
-  // กำหนดรายชื่อผู้เข้าร่วม (สมาชิกโปรเจคและอาจารย์ประจำกลุ่ม)
+  // กำหนดรายชื่อผู้เข้าร่วม
   const attendees = React.useMemo(() => {
     if (!appointment || !appointment.project) return [];
     const list = [];
@@ -258,8 +264,8 @@ export default function AppointmentDetail() {
 
   if (!appointment) {
     return (
-      <div className="bg-[url(./bg/bg.webp)] bg-cover bg-center bg-no-repeat min-h-screen">
-        <div className="min-h-screen flex items-center justify-center">
+      <div className="bg-[url(./bg/bg.webp)] bg-cover bg-center bg-no-repeat min-h-full">
+        <div className="min-h-screen flex items-center center justify-center ">
           <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl p-8 text-center">
             <div className="text-red-500 text-6xl mb-4">⚠️</div>
             <div className="text-xl text-red-600 font-semibold">
@@ -286,6 +292,8 @@ export default function AppointmentDetail() {
   };
 
   const handleApprove = async () => {
+    setActionMessage('กำลังยืนยันนัดหมาย...');
+    setActionLoading(true);
     try {
       await appointmentService.updateStatus(id, { status: 'approved' });
       const updated = await appointmentService.get(id);
@@ -293,10 +301,15 @@ export default function AppointmentDetail() {
       alert('ยืนยันนัดหมายเรียบร้อย');
     } catch (e) {
       setError(e?.response?.data?.message || e?.message || 'ไม่สามารถยืนยันนัดหมายได้');
+    } finally {
+      setActionLoading(false);
+      setActionMessage('');
     }
   };
 
   const handleApproveReschedule = async () => {
+    setActionMessage('กำลังอนุมัติการเลื่อนนัด...');
+    setActionLoading(true);
     try {
       await appointmentService.respondToReschedule(id, { accepted: true });
       const updated = await appointmentService.get(id);
@@ -304,11 +317,15 @@ export default function AppointmentDetail() {
       alert('อนุมัติการเลื่อนนัดเรียบร้อยแล้ว');
     } catch (e) {
       setError(e?.response?.data?.message || e?.message || 'ไม่สามารถอนุมัติการเลื่อนนัดได้');
+    } finally {
+      setActionLoading(false);
+      setActionMessage('');
     }
   };
 
   return (
     <div className="bg-[url(./bg/bg.webp)] bg-cover bg-center bg-no-repeat min-h-screen">
+      <LoadingOverlay show={actionLoading} message={actionMessage} />
       <div className="p-4 md:p-6 lg:p-8 max-w-4xl mx-auto">
         {!editMode ? (
           // View Mode
@@ -319,8 +336,8 @@ export default function AppointmentDetail() {
               <div className={`h-2 bg-gradient-to-r ${getStatusColor(appointment.status)}`}></div>
 
               <div className="p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div className="flex-1 min-w-0">
                     <h2 className="text-3xl font-bold text-gray-800 mb-2">
                       {appointment.title}
                     </h2>
@@ -337,7 +354,22 @@ export default function AppointmentDetail() {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {appointment?.isNextAppointment && (
+                      <button onClick={async () => {
+                        try {
+                          // fetch previous appointment and meeting summary if available
+                          const prev = appointment.previousAppointment ? await appointmentService.get(appointment.previousAppointment) : null;
+                          let summary = null;
+                          if (appointment.meetingSummary) {
+                            const s = await (await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/meetingsummaries/${appointment.meetingSummary}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token') || ''}` } })).json();
+                            summary = s;
+                          }
+                          setNextInfo({ previous: prev, summary });
+                          setShowNextInfoModal(true);
+                        } catch (err) { console.error(err); alert('โหลดข้อมูลล้มเหลว'); }
+                      }} className="px-3 py-1 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm">นัดหมายครั้งถัดไป</button>
+                    )}
                     {/* Student actions for reschedule request */}
                     {appointment.status === 'reschedule_requested' && (isProjectMember || isCreator) && (
                       <>
@@ -359,7 +391,7 @@ export default function AppointmentDetail() {
                     )}
 
                     {/* Cancel & Edit: visible to creator or admin */}
-                    {(isAdmin || isCreator) && appointment?.status !== 'completed' && !isLocked && !showOnlyComplete && appointment.status !== 'reschedule_requested' && (
+                    {(isAdmin || isCreator) && appointment?.status !== 'completed' && !isLocked && !showOnlyComplete && appointment.status !== 'reschedule_requested' && appointment.status !== 'approved' && (
                       <>
                         <button
                           onClick={handleCancelAppointment}
@@ -382,6 +414,7 @@ export default function AppointmentDetail() {
 
                     {isAdvisor && appointment?.status !== 'completed' && !isLocked && !showOnlyComplete && appointment.status !== 'reschedule_requested' && (
                       <>
+                        <div className="flex flex-wrap items-center gap-2">
                         <button
                           onClick={handleApprove}
                           className="group flex items-center px-5 py-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-xl mr-2 shadow hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200"
@@ -390,6 +423,7 @@ export default function AppointmentDetail() {
                           <span className="font-medium">ยืนยันนัดหมาย</span>
                         </button>
 
+                        </div>
                         <button
                           onClick={() => setShowRescheduleModal(true)}
                           className="group flex items-center px-4 py-2 bg-gradient-to-r from-orange-400 to-yellow-400 hover:from-orange-500 hover:to-yellow-500 text-white rounded-xl mr-2 shadow hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200"
@@ -506,7 +540,12 @@ export default function AppointmentDetail() {
                   <MdWork className="text-teal-500 mr-3" />
                   โปรเจค
                 </h3>
-                <p className="text-gray-700 font-medium">{appointment.project.name || "-"}</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-gray-700 font-medium">{appointment.project.name || "-"}</p>
+                  <div>
+                    <button onClick={() => navigate(`/projects/details/${appointment.project._id}`)} className="px-3 py-1 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm">ดูโปรเจค</button>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -732,7 +771,7 @@ export default function AppointmentDetail() {
                 <div className="flex gap-3 pt-4">
                   <button
                     type="submit"
-                    disabled={saving || isLocked || showOnlyComplete || (appointment?.status === 'completed' && !isAdmin)}
+                    disabled={saving || isLocked || showOnlyComplete || (appointment?.status === 'completed' && !isAdmin) || (appointment?.status === 'approved' && !isAdmin)}
                     className="group flex items-center px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 disabled:from-gray-400 disabled:to-gray-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 disabled:cursor-not-allowed disabled:transform-none"
                   >
                     <AiFillSave className="text-xl mr-2 group-hover:scale-110 transition-transform duration-300" />
@@ -806,15 +845,66 @@ export default function AppointmentDetail() {
       <SummaryModal
         isOpen={showSummaryModal}
         onClose={() => setShowSummaryModal(false)}
-        onSubmit={async ({ summary }) => {
+        onSubmit={async ({ summary, homework, nextMeetingDate, createNext, nextStartTime, nextEndTime, nextTitle, files }) => {
           try {
-            await appointmentService.updateStatus(id, { status: 'completed', summary });
+            // First, mark this appointment as completed and create the MeetingSummary on the server.
+            // This ensures we don't create follow-up appointments or send follow-up emails when the
+            // MeetingSummary creation fails (for example, duplicate summary -> 409).
+            const payload = { status: 'completed', summary, homework };
+            if (nextMeetingDate) payload.nextMeetingDate = nextMeetingDate;
+
+            const res = await appointmentService.updateStatus(id, payload);
+            // If updateStatus returned a 409 or other error, it will throw and we won't proceed.
+
+            // At this point the MeetingSummary should exist. Fetch updated appointment to get meetingSummary id.
             const updated = await appointmentService.get(id);
+
+            // If the user requested a follow-up appointment, create it now. Creating it after the summary
+            // ensures that follow-up emails are only sent when the summary was successfully saved.
+            if (createNext) {
+              // validate date and times
+              if (!nextMeetingDate || !nextStartTime || !nextEndTime) {
+                throw new Error('กรุณาระบุวันที่และเวลาสำหรับการสร้างนัดหมายครั้งถัดไป');
+              }
+              // Ensure date is yyyy-mm-dd
+              const isoDate = String(nextMeetingDate).includes('T') ? String(nextMeetingDate).split('T')[0] : String(nextMeetingDate);
+              const createPayload = {
+                title: nextTitle || `นัดหมาย follow-up: ${appointment.title}`,
+                description: `Follow-up from meeting ${appointment.title}`,
+                date: isoDate,
+                startTime: nextStartTime,
+                endTime: nextEndTime,
+                meetingType: appointment.meetingType || 'online',
+                location: appointment.location || '',
+                note: '',
+                project: appointment.project?._id || appointment.project,
+              };
+              try {
+                await appointmentService.create(createPayload);
+              } catch (createErr) {
+                console.error('Create follow-up appointment failed', createErr);
+                // Do not revert the saved summary, but surface the error to the user.
+                alert('สรุปถูกบันทึก แต่การสร้างนัดหมายครั้งถัดไปล้มเหลว');
+              }
+            }
+
+            // If there are files to upload, and the backend added meetingSummary id to appointment
+            const meetingSummaryId = updated.meetingSummary || updated.meetingSummary?._id || null;
+            if (Array.isArray(files) && files.length > 0 && meetingSummaryId) {
+              try {
+                await attachmentService.upload('meetingSummary', meetingSummaryId, files);
+              } catch (upErr) {
+                console.error('Upload meeting summary attachments failed', upErr);
+                // not fatal for the summary save; inform user
+                alert('สรุปถูกบันทึก แต่การอัปโหลดไฟล์ล้มเหลว');
+              }
+            }
+
             setAppointment(updated);
             setShowSummaryModal(false);
             alert('บันทึกสถานะว่าเสร็จสิ้นเรียบร้อยแล้ว');
           } catch (e) {
-            // The modal will handle showing the error
+            // The modal will handle showing the error (e.g., 409 duplicate summary). Re-throw so the modal can display it.
             throw e;
           }
         }}
@@ -836,6 +926,8 @@ export default function AppointmentDetail() {
           }
         }}
       />
+
+  <NextAppointmentInfoModal isOpen={showNextInfoModal} onClose={() => setShowNextInfoModal(false)} previousAppointment={nextInfo.previous} meetingSummary={nextInfo.summary} />
     </div>
   );
 }

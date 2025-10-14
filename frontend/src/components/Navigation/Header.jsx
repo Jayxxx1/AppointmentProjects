@@ -53,8 +53,8 @@ export default function Header({ isSidebarOpen, toggleSidebar }) {
           </svg>
         </button>
 
-        {/* Enhanced Search Bar */}
-        <div className="relative flex-grow mx-50 hidden md:block max-w-sm lg:max-w-md ml-auto">
+  {/* Enhanced Search Bar */}
+  <div className="relative flex-grow hidden md:block max-w-sm lg:max-w-md ml-auto">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
             <FiSearch className="h-5 w-5 text-gray-400 transition-colors duration-200" />
           </div>

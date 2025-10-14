@@ -70,6 +70,10 @@ export const attachmentService = {
   downloadUrl(id) {
     return `${API_URL}/api/attachments/download/${encodeURIComponent(String(id))}`;
   },
+  async remove(id) {
+    const r = await client.delete(`/api/attachments/${encodeURIComponent(String(id))}`);
+    return r.data;
+  },
 };
 
 export default attachmentService;

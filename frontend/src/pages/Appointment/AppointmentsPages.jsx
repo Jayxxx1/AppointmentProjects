@@ -130,7 +130,7 @@ export default function AppointmentsPage() {
                 <div className="flex items-center">
                   <div className="relative">
                     <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full blur-lg opacity-30 animate-pulse"></div>
-                    <AiFillCalendar className="text-4xl bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent relative z-10" />
+              <img src="./logo/logo2.png" alt="Logo" className="w-16 h-12 relative z-10 drop-shadow-lg" />
                   </div>
                   <div className="ml-4">
                     <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-700 to-gray-900 bg-clip-text text-transparent">

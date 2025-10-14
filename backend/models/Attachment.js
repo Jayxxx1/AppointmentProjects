@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 const { Schema } = mongoose;
 const AttachmentSchema = new Schema({
-  ownerType: { type: String, enum: ['project','appointment'], required: true, index: true },
+  ownerType: { type: String, enum: ['project','appointment','meetingSummary'], required: true, index: true },
   ownerId:   { type: Schema.Types.ObjectId, required: true, index: true },
   originalName: { type: String, required: true, trim: true },
   mimeType:     { type: String, required: true, trim: true },

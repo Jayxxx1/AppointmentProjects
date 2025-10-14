@@ -19,7 +19,7 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar }) {
     { name: 'สรุปการประชุม', path: '/meetsummary', icon: <MdSummarize className="text-xl md:text-2xl lg:text-2xl" />, color: 'from-orange-500 to-amber-500' },
     { name: 'โปรเจคของฉัน', path: '/projects', icon: <MdGroup className="text-xl md:text-2xl lg:text-2xl" />, color: 'from-indigo-500 to-purple-500' },
     { name: 'เกี่ยวกับ', path: '/about', icon: <IoMdInformationCircleOutline className="text-xl md:text-2xl lg:text-2xl" />, color: 'from-gray-500 to-slate-500' },
-    { name: 'เมนูแอดมิน', path: '/admin', icon: <MdOutlineAdminPanelSettings className="w-10 h-7.8" />, color: 'from-purple-500 to-pink-500', requiresAdmin: true },
+  { name: 'เมนูแอดมิน', path: '/admin', icon: <MdOutlineAdminPanelSettings className="w-10 h-8" />, color: 'from-purple-500 to-pink-500', requiresAdmin: true },
   ];
   
   // กรอง navItems โดยใช้ .filter()

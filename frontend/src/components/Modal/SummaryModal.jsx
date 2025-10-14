@@ -5,6 +5,13 @@ import { AiOutlineClose } from 'react-icons/ai';
 const SummaryModal = ({ isOpen, onClose, onSubmit }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [summary, setSummary] = useState('');
+  const [homework, setHomework] = useState('');
+  const [nextMeetingDate, setNextMeetingDate] = useState('');
+  const [createNext, setCreateNext] = useState(false);
+  const [nextStartTime, setNextStartTime] = useState('');
+  const [nextEndTime, setNextEndTime] = useState('');
+  const [nextTitle, setNextTitle] = useState('');
+  const [files, setFiles] = useState([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -13,6 +20,13 @@ const SummaryModal = ({ isOpen, onClose, onSubmit }) => {
       setSummary('');
       setError('');
       setIsLoading(false);
+      setHomework('');
+      setNextMeetingDate('');
+      setCreateNext(false);
+      setNextStartTime('');
+      setNextEndTime('');
+      setNextTitle('');
+      setFiles([]);
     }
   }, [isOpen]);
 
@@ -27,7 +41,8 @@ const SummaryModal = ({ isOpen, onClose, onSubmit }) => {
     setError('');
     setIsLoading(true);
     try {
-      await onSubmit({ summary });
+      // Pass other optional fields (homework, nextMeetingDate) and files to parent
+  await onSubmit({ summary, homework, nextMeetingDate, createNext, nextStartTime, nextEndTime, nextTitle, files });
     } catch (err) {
       setError(err?.response?.data?.message || err.message || 'เกิดข้อผิดพลาดในการบันทึก');
     } finally {
@@ -79,6 +94,68 @@ const SummaryModal = ({ isOpen, onClose, onSubmit }) => {
                 disabled={isLoading}
                 required
               />
+            </div>
+            <div>
+              <label htmlFor="homework" className="block text-sm font-medium text-gray-700">งานที่มอบหมาย (ถ้ามี)</label>
+              <textarea
+                id="homework"
+                rows="3"
+                value={homework}
+                onChange={(e) => setHomework(e.target.value)}
+                className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
+                placeholder="เช่น ให้นักศึกษาทำแบบสำรวจ/ส่งรายงาน..."
+                disabled={isLoading}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="nextMeetingDate" className="block text-sm font-medium text-gray-700">วันที่พบครั้งถัดไป (ถ้ามี)</label>
+              <input
+                id="nextMeetingDate"
+                type="date"
+                value={nextMeetingDate ? (String(nextMeetingDate).includes('T') ? String(nextMeetingDate).split('T')[0] : String(nextMeetingDate)) : ''}
+                onChange={(e) => setNextMeetingDate(e.target.value)}
+                className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
+                disabled={isLoading}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">แนบไฟล์ (ถ้ามี)</label>
+              <input
+                type="file"
+                multiple
+                onChange={(e) => setFiles(Array.from(e.target.files || []))}
+                className="mt-1 block w-full"
+                disabled={isLoading}
+              />
+              <p className="text-xs text-gray-500 mt-1">ไฟล์แนบจะเชื่อมโยงกับสรุปการประชุม</p>
+            </div>
+
+            <div className="pt-4 border-t border-gray-100">
+              <label className="inline-flex items-center gap-2">
+                <input type="checkbox" checked={createNext} onChange={(e) => setCreateNext(e.target.checked)} disabled={isLoading} />
+                <span className="text-sm text-gray-700">สร้างนัดหมายครั้งถัดไปจากข้อมูลด้านล่าง</span>
+              </label>
+
+              {createNext && (
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">หัวข้อสำหรับนัดหมายใหม่</label>
+                    <input value={nextTitle} onChange={(e) => setNextTitle(e.target.value)} className="mt-1 block w-full px-3 py-2 border rounded-md" placeholder="หัวข้อนัดหมาย" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">เวลาเริ่ม</label>
+                      <input type="time" value={nextStartTime} onChange={(e) => setNextStartTime(e.target.value)} className="mt-1 block w-full px-3 py-2 border rounded-md" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">เวลาสิ้นสุด</label>
+                      <input type="time" value={nextEndTime} onChange={(e) => setNextEndTime(e.target.value)} className="mt-1 block w-full px-3 py-2 border rounded-md" />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="flex justify-end pt-2">
               <button
