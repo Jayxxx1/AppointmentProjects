@@ -28,8 +28,8 @@ const RejectRescheduleModal = ({ isOpen, onClose, onSubmit }) => {
 
   return (
     <ModalPortal>
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-        <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50">
+        <div className="bg-white rounded-lg shadow-xl p-4 w-full max-w-md max-h-[85vh] overflow-auto m-4">
           <h2 className="text-xl font-bold mb-4">ปฏิเสธการเลื่อนนัด</h2>
           <form onSubmit={handleSubmit}>
             <div className="mb-4">
@@ -46,7 +46,7 @@ const RejectRescheduleModal = ({ isOpen, onClose, onSubmit }) => {
               />
             </div>
             {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
-            <div className="flex justify-end gap-4">
+            <div className="flex flex-col sm:flex-row sm:justify-end gap-3">
               <button
                 type="button"
                 onClick={onClose}

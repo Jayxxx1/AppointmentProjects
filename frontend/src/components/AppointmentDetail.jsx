@@ -1,4 +1,3 @@
-// src/pages/AppointmentDetail.jsx
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { appointmentService } from "../services/appointmentService";
@@ -31,7 +30,9 @@ import RejectModal from './Modal/RejectModal';
 import SummaryModal from './Modal/SummaryModal';
 import RejectRescheduleModal from './Modal/RejectRescheduleModal'; // Import the new modal
 import NextAppointmentInfoModal from './Modal/NextAppointmentInfoModal';
+import CancelReasonModal from './Modal/CancelReasonModal';
 import LoadingOverlay from './LoadingOverlay';
+import TimePicker from './TimePicker.jsx';
 
 export default function AppointmentDetail() {
   const { id } = useParams();
@@ -47,6 +48,8 @@ export default function AppointmentDetail() {
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [showRejectRescheduleModal, setShowRejectRescheduleModal] = useState(false); // State for the new modal
   const [showNextInfoModal, setShowNextInfoModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelSubmitting, setCancelSubmitting] = useState(false);
   const [nextInfo, setNextInfo] = useState({ previous: null, summary: null });
   const [attachErr, setAttachErr] = useState("");
   const [form, setForm] = useState({
@@ -67,21 +70,26 @@ export default function AppointmentDetail() {
   // Current user for permission checks
   const { user } = useAuth();
 
-  // derived permissions (compute after appointment loads)
   const uid = user?._id?.toString() || user?.id?.toString();
   const isCreator = appointment?.createBy?._id?.toString() === uid || appointment?.createBy?._id?.toString() === user?.id?.toString();
   const isAdvisor = appointment?.project?.advisor?._id?.toString() === uid || appointment?.project?.advisor?._id?.toString() === user?.id?.toString();
   const isAdmin = user?.role === 'admin';
   const isProjectMember = appointment?.project?.members?.some(member => member._id.toString() === uid);
 
-  // When appointment is cancelled or rejected, lock actions for everyone except admin
+  // lock actions for everyone except admin
   const isLocked = appointment && ['cancelled', 'rejected'].includes((appointment.status || '').toLowerCase()) && !isAdmin;
-  // After advisor decision (approved or rejected), UI should show only the Complete button for advisor/admin
+  // After advisor decision (approved or rejected)
   const showOnlyComplete = appointment && ['approved', 'rejected'].includes((appointment.status || '').toLowerCase()) && (isAdvisor || isAdmin);
 
+  // Follow-up helper flags
+  const isFollowUp = Boolean(appointment?.isNextAppointment || appointment?.previousAppointment);
+  const appointmentCreatorId = appointment?.createBy?._id || appointment?.createBy;
+  const projectAdvisorId = appointment?.project?.advisor?._id || appointment?.project?.advisor;
+  const isAdvisorCreatedFollowUp = isFollowUp && String(appointmentCreatorId) === String(projectAdvisorId);
+  const participantCanApproveFollowUp = (isProjectMember || isCreator) && isFollowUp;
+  const advisorCanApprove = isAdvisor && !isAdvisorCreatedFollowUp;
+
   // Debug info for rapid troubleshooting
-  // eslint-disable-next-line no-console
-  // console.debug('AppointmentDetail render', { appointmentStatus: appointment?.status, isAdvisor, isAdmin, isLocked, showOnlyComplete, showRescheduleModal, showRejectModal, showSummaryModal });
 
   useEffect(() => {
     let alive = true;
@@ -197,6 +205,7 @@ export default function AppointmentDetail() {
       case 'completed':
         return 'from-sky-500 to-indigo-500';
       case 'cancelled':
+        return 'from-gray-400 to-gray-500';
       case 'rejected':
         return 'from-red-500 to-pink-500';
       case 'pending':
@@ -244,6 +253,13 @@ export default function AppointmentDetail() {
     }
     return Array.from(map.values());
   }, [appointment]);
+
+  // Compute reschedule response helper for display (student's reply to a reschedule request)
+  const rescheduleResponse = appointment?.reschedule?.response;
+  const rescheduleResponder = rescheduleResponse
+    ? (attendees.find(u => String(u._id) === String(rescheduleResponse.responder)) || appointment?.createBy || appointment?.project?.advisor)
+    : null;
+  const rescheduleResponderName = rescheduleResponder ? (rescheduleResponder.fullName || rescheduleResponder.username || rescheduleResponder.email) : (rescheduleResponse ? String(rescheduleResponse.responder) : null);
 
   if (loading) {
     return (
@@ -323,6 +339,26 @@ export default function AppointmentDetail() {
     }
   };
 
+  const handleCancelWithReason = async ({ reason }) => {
+    setCancelSubmitting(true);
+    try {
+      const res = await appointmentService.updateStatus(id, { status: 'cancelled', reason });
+      // If backend returned deleted indicator, navigate away
+      if (res && res.deleted) {
+        setShowCancelModal(false);
+        navigate('/appointments', { replace: true });
+        return;
+      }
+      const updated = await appointmentService.get(id);
+      setAppointment(updated);
+      setShowCancelModal(false);
+    } catch (e) {
+      throw e;
+    } finally {
+      setCancelSubmitting(false);
+    }
+  };
+
   return (
     <div className="bg-[url(./bg/bg.webp)] bg-cover bg-center bg-no-repeat min-h-screen">
       <LoadingOverlay show={actionLoading} message={actionMessage} />
@@ -335,7 +371,7 @@ export default function AppointmentDetail() {
               {/* Status Bar */}
               <div className={`h-2 bg-gradient-to-r ${getStatusColor(appointment.status)}`}></div>
 
-              <div className="p-6">
+              <div className="p-4 md:p-6">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <h2 className="text-3xl font-bold text-gray-800 mb-2">
@@ -345,16 +381,19 @@ export default function AppointmentDetail() {
                       {getStatusIcon(appointment.status)}
                       <span className="ml-2 font-medium text-gray-700">
                         {getStatusText(appointment.status)}
+                        {appointment.status === 'rejected' && appointment.reschedule?.response && appointment.reschedule.response.accepted === false && appointment.reschedule.response.reason ? (
+                          <span className="ml-2 text-sm text-red-600 font-medium">({appointment.reschedule.response.reason})</span>
+                        ) : null}
                       </span>
                       {appointment.status === 'reschedule_requested' && (
                         <span className="ml-2 text-sm text-orange-600 font-semibold">(รอการตอบรับจากนักศึกษา)</span>
                       )}
-                      {appointment.status === 'rejected' && appointment.reason && (
+                      {(appointment.status === 'rejected' || appointment.status === 'cancelled') && appointment.reason && (
                         <span className="ml-2 text-sm text-red-600 font-semibold">({appointment.reason})</span>
                       )}
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2 w-full md:w-auto mt-3 md:mt-0">
                     {appointment?.isNextAppointment && (
                       <button onClick={async () => {
                         try {
@@ -368,21 +407,21 @@ export default function AppointmentDetail() {
                           setNextInfo({ previous: prev, summary });
                           setShowNextInfoModal(true);
                         } catch (err) { console.error(err); alert('โหลดข้อมูลล้มเหลว'); }
-                      }} className="px-3 py-1 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm">นัดหมายครั้งถัดไป</button>
+                      }} className="px-3 py-1 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm flex-shrink-0">นัดหมายครั้งถัดไป</button>
                     )}
                     {/* Student actions for reschedule request */}
                     {appointment.status === 'reschedule_requested' && (isProjectMember || isCreator) && (
                       <>
                         <button
                           onClick={handleApproveReschedule}
-                          className="group flex items-center px-5 py-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-xl shadow hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200"
+                          className="group flex items-center px-5 py-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-xl shadow hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 flex-shrink-0"
                           title="อนุมัติการเลื่อนนัด"
                         >
                           <span className="font-medium">อนุมัติเวลาใหม่</span>
                         </button>
                         <button
                           onClick={() => setShowRejectRescheduleModal(true)}
-                          className="group flex items-center px-4 py-2 bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white rounded-xl shadow hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200"
+                          className="group flex items-center px-4 py-2 bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white rounded-xl shadow hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 flex-shrink-0"
                           title="ปฏิเสธการเลื่อนนัด"
                         >
                           <span className="font-medium">ปฏิเสธเวลาใหม่</span>
@@ -390,12 +429,12 @@ export default function AppointmentDetail() {
                       </>
                     )}
 
-                    {/* Cancel & Edit: visible to creator or admin */}
-                    {(isAdmin || isCreator) && appointment?.status !== 'completed' && !isLocked && !showOnlyComplete && appointment.status !== 'reschedule_requested' && appointment.status !== 'approved' && (
+                    {/* Cancel & Edit: visible to creator (who is not an advisor) or admin */}
+                    {(isAdmin || (isCreator && !isAdvisor)) && appointment?.status !== 'completed' && !isLocked && !showOnlyComplete && appointment.status !== 'reschedule_requested' && appointment.status !== 'approved' && (
                       <>
                         <button
-                          onClick={handleCancelAppointment}
-                          className="group flex items-center px-6 py-3 bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
+                          onClick={() => setShowCancelModal(true)}
+                          className="group flex items-center px-6 py-3 bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex-shrink-0"
                           title="ขอยกเลิกนัดหมาย"
                         >
                           <AiFillCloseCircle className="text-xl mr-2 group-hover:scale-110 transition-transform duration-300" />
@@ -404,7 +443,7 @@ export default function AppointmentDetail() {
 
                         <button
                           onClick={() => { if (appointment?.status === 'completed' && !isAdmin) return; setEditMode(true); }}
-                          className="group flex items-center px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
+                          className="group flex items-center px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex-shrink-0"
                         >
                           <AiFillEdit className="text-xl mr-2 group-hover:rotate-12 transition-transform duration-300" />
                           <span>แก้ไขนัดหมาย</span>
@@ -412,21 +451,27 @@ export default function AppointmentDetail() {
                       </>
                     )}
 
-                    {isAdvisor && appointment?.status !== 'completed' && !isLocked && !showOnlyComplete && appointment.status !== 'reschedule_requested' && (
+                    {/* Advisor actions */}
+                    {advisorCanApprove && appointment?.status !== 'completed' && !isLocked && !showOnlyComplete && appointment.status !== 'reschedule_requested' && (
                       <>
                         <div className="flex flex-wrap items-center gap-2">
-                        <button
-                          onClick={handleApprove}
-                          className="group flex items-center px-5 py-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-xl mr-2 shadow hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200"
-                          title="ยืนยันนัดหมาย"
-                        >
-                          <span className="font-medium">ยืนยันนัดหมาย</span>
-                        </button>
-
+                          <button
+                            onClick={handleApprove}
+                            className="group flex items-center px-5 py-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-xl mr-2 shadow hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 flex-shrink-0"
+                            title="ยืนยันนัดหมาย"
+                          >
+                            <span className="font-medium">ยืนยันนัดหมาย</span>
+                          </button>
                         </div>
+                        </>
+                    )}
+
+                    {/* Allow advisor to reschedule/reject even after approving (but not if completed/locked/reschedule_requested) */}
+                    {isAdvisor && appointment?.status !== 'completed' && !isLocked && appointment.status !== 'reschedule_requested' && (
+                      <>
                         <button
                           onClick={() => setShowRescheduleModal(true)}
-                          className="group flex items-center px-4 py-2 bg-gradient-to-r from-orange-400 to-yellow-400 hover:from-orange-500 hover:to-yellow-500 text-white rounded-xl mr-2 shadow hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200"
+                          className="group flex items-center px-4 py-2 bg-gradient-to-r from-orange-400 to-yellow-400 hover:from-orange-500 hover:to-yellow-500 text-white rounded-xl mr-2 shadow hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 flex-shrink-0"
                           title="ขอเปลี่ยนแปลงเวลา"
                         >
                           <span className="font-medium">ขอเปลี่ยนแปลงเวลา</span>
@@ -434,17 +479,30 @@ export default function AppointmentDetail() {
 
                         <button
                           onClick={() => setShowRejectModal(true)}
-                          className="group flex items-center px-4 py-2 bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white rounded-xl shadow hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200"
-                          title="ปฏิเสธ"
+                          className="group flex items-center px-4 py-2 bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white rounded-xl shadow hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 flex-shrink-0"
+                          title={appointment?.status === 'approved' ? 'ยกเลิก' : 'ปฏิเสธ'}
                         >
-                          <span className="font-medium">ปฏิเสธ</span>
+                          <span className="font-medium">{appointment?.status === 'approved' ? 'ยกเลิก' : 'ปฏิเสธ'}</span>
+                        </button>
+                      </>
+                    )}
+
+                    {/* Participant actions on follow-ups: participants (students) can approve pending follow-ups */}
+                    {participantCanApproveFollowUp && appointment?.status === 'pending' && !isLocked && (
+                      <>
+                        <button
+                          onClick={handleApprove}
+                          className="group flex items-center px-5 py-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-xl mr-2 shadow hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 flex-shrink-0"
+                          title="ยืนยันนัดหมาย"
+                        >
+                          <span className="font-medium">ยืนยันนัดหมาย</span>
                         </button>
                       </>
                     )}
 
                     {/* Complete meeting: visible only to advisor or admin */}
                     {showOnlyComplete && appointment?.status !== 'completed' && !isLocked && (
-                        <button
+                      <button
                         onClick={() => setShowSummaryModal(true)}
                         className="group flex items-center px-6 py-3 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
                       >
@@ -488,6 +546,13 @@ export default function AppointmentDetail() {
                        {appointment.reschedule.reason && (
                         <p className="text-sm text-gray-600 mt-2"><strong>เหตุผล:</strong> {appointment.reschedule.reason}</p>
                        )}
+                      {rescheduleResponse && (
+                        <div className="mt-2 bg-gray-50 p-3 rounded-md border border-gray-100">
+                          <p className="text-sm text-gray-700"><strong>การตอบกลับจากนักศึกษา:</strong> {rescheduleResponse.accepted ? 'ยอมรับเวลาใหม่' : 'ปฏิเสธเวลาใหม่'}</p>
+                          {rescheduleResponse.reason && <p className="text-sm text-gray-600 mt-1"><strong>เหตุผลจากนักศึกษา:</strong> {rescheduleResponse.reason}</p>}
+                          <p className="text-xs text-gray-500 mt-1">โดย: {rescheduleResponderName}{rescheduleResponse.respondedAt ? ` • เมื่อ ${new Date(rescheduleResponse.respondedAt).toLocaleString('th-TH')}` : ''}</p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -580,16 +645,19 @@ export default function AppointmentDetail() {
                     const created = a.createdAt ? new Date(a.createdAt) : null;
                     const expire = a.expireAt ? new Date(a.expireAt) : null;
                     return (
-                      <li key={a._id} className="py-3 flex items-center justify-between">
+                      <li key={a._id} className="py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                         <div className="min-w-0">
                           <div className="font-medium text-gray-800 truncate">{a.originalName}</div>
                           <div className="text-xs text-gray-500">
                             {a.mimeType || 'ไฟล์'}{sizeKB ? ` • ${sizeKB} KB` : ''}{created ? ` • อัปโหลด ${created.toLocaleString('th-TH')}` : ''}{expire ? ` • หมดอายุ ${expire.toLocaleString('th-TH')}` : ''}
                           </div>
                         </div>
-                        <button onClick={onDownload} className="px-3 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:opacity-90">
-                          ดาวน์โหลด
-                        </button>
+                        <div className="w-full sm:w-auto flex items-center gap-2">
+                          <button onClick={onDownload} className="px-3 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:opacity-90 w-full sm:w-auto text-center">
+                            ดาวน์โหลด
+                          </button>
+                          {/* future: add remove button if allowed */}
+                        </div>
                       </li>
                     );
                   })}
@@ -698,27 +766,13 @@ export default function AppointmentDetail() {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       เวลาเริ่มต้น *
                     </label>
-                    <input
-                      type="time"
-                      name="startTime"
-                      value={form.startTime}
-                      onChange={handleChange}
-                      required
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200"
-                    />
+                    <TimePicker id="edit-start" name="startTime" value={form.startTime} onChange={(v) => setForm(prev => ({ ...prev, startTime: v }))} />
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       เวลาสิ้นสุด *
                     </label>
-                    <input
-                      type="time"
-                      name="endTime"
-                      value={form.endTime}
-                      onChange={handleChange}
-                      required
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200"
-                    />
+                    <TimePicker id="edit-end" name="endTime" value={form.endTime} onChange={(v) => setForm(prev => ({ ...prev, endTime: v }))} />
                   </div>
                 </div>
 
@@ -819,7 +873,6 @@ export default function AppointmentDetail() {
             setShowRescheduleModal(false);
             alert('ส่งคำขอเลื่อนนัดเรียบร้อยแล้ว');
           } catch (e) {
-            // The modal will handle showing the error
             throw e;
           }
         }}
@@ -836,7 +889,6 @@ export default function AppointmentDetail() {
             setShowRejectModal(false);
             alert('ปฏิเสธนัดหมายเรียบร้อยแล้ว');
           } catch (e) {
-            // The modal will handle showing the error
             throw e;
           }
         }}
@@ -854,13 +906,10 @@ export default function AppointmentDetail() {
             if (nextMeetingDate) payload.nextMeetingDate = nextMeetingDate;
 
             const res = await appointmentService.updateStatus(id, payload);
-            // If updateStatus returned a 409 or other error, it will throw and we won't proceed.
 
-            // At this point the MeetingSummary should exist. Fetch updated appointment to get meetingSummary id.
             const updated = await appointmentService.get(id);
 
             // If the user requested a follow-up appointment, create it now. Creating it after the summary
-            // ensures that follow-up emails are only sent when the summary was successfully saved.
             if (createNext) {
               // validate date and times
               if (!nextMeetingDate || !nextStartTime || !nextEndTime) {
@@ -889,14 +938,17 @@ export default function AppointmentDetail() {
             }
 
             // If there are files to upload, and the backend added meetingSummary id to appointment
-            const meetingSummaryId = updated.meetingSummary || updated.meetingSummary?._id || null;
+            const meetingSummaryIdRaw = updated?.meetingSummary?._id || updated?.meetingSummary || null;
+            const meetingSummaryId = meetingSummaryIdRaw ? String(meetingSummaryIdRaw) : null;
             if (Array.isArray(files) && files.length > 0 && meetingSummaryId) {
               try {
                 await attachmentService.upload('meetingSummary', meetingSummaryId, files);
               } catch (upErr) {
+                // log detailed server response when available
                 console.error('Upload meeting summary attachments failed', upErr);
-                // not fatal for the summary save; inform user
-                alert('สรุปถูกบันทึก แต่การอัปโหลดไฟล์ล้มเหลว');
+                const serverDetail = upErr?.response?.data?.detail || upErr?.response?.data?.message || upErr?.message;
+                // not fatal for the summary save; inform user with more detail
+                alert(`สรุปถูกบันทึก แต่การอัปโหลดไฟล์ล้มเหลว\n\n${serverDetail}`);
               }
             }
 
@@ -926,6 +978,8 @@ export default function AppointmentDetail() {
           }
         }}
       />
+
+  <CancelReasonModal isOpen={showCancelModal} onClose={() => setShowCancelModal(false)} submitting={cancelSubmitting} onSubmit={handleCancelWithReason} />
 
   <NextAppointmentInfoModal isOpen={showNextInfoModal} onClose={() => setShowNextInfoModal(false)} previousAppointment={nextInfo.previous} meetingSummary={nextInfo.summary} />
     </div>

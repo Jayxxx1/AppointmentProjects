@@ -7,7 +7,6 @@ const meetingSummarySchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Appointment',
       required: true,
-        index: true,
     },
     // โปรเจคที่เกี่ยวข้อง 
     project: {

@@ -91,7 +91,10 @@ export default function MeetSumPage() {
                       {Array.isArray(it.attachments) && it.attachments.length > 0 ? (
                         <ul className="space-y-2">
                           {it.attachments.map(a => (
-                            <li key={a._id || a}><a href={attachmentService.downloadUrl(a._id || a)} className="text-blue-600 hover:underline">{a.originalName || 'ดาวน์โหลดไฟล์'}</a></li>
+                            <li key={a._id || a} className="flex items-center justify-between">
+                              <span className="text-blue-600">{a.originalName || 'ดาวน์โหลดไฟล์'}</span>
+                              <button className="text-sm text-blue-600 hover:underline" onClick={async () => { try { await attachmentService.download(a._id || a, a.originalName || 'download'); } catch (e) { alert('ดาวน์โหลดล้มเหลว'); } }}>ดาวน์โหลด</button>
+                            </li>
                           ))}
                         </ul>
                       ) : <p className="text-sm text-gray-500">— ไม่มี —</p>}

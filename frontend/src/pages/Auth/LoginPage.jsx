@@ -38,12 +38,12 @@ export default function LoginPage() {
 
   return (
     <div className="bg-[url(./bg/bg.webp)] bg-cover bg-center bg-no-repeat min-h-screen flex items-center justify-center p-4">
-      <div className="w-full max-w-lg bg-white/40 backdrop-blur-md rounded-3xl shadow-xl overflow-hidden p-8 flex items-center justify-center">
+      <div className="w-full max-w-lg bg-white/40 backdrop-blur-md rounded-3xl shadow-xl overflow-hidden p-6 sm:p-8 flex items-center justify-center">
         <div className="w-full max-w-md space-y-8">
           <div className="text-center">
             <div className="flex items-center justify-center space-x-2 mb-8">
-              <div className="w-20 h-14 rounded-full flex items-center justify-center">
-                <img src="./logo/logo2.png" alt="Logo" className="w-25 h-16 relative z-10 drop-shadow-lg bg-transparent" />
+              <div className="w-16 h-16 sm:w-20 sm:h-14 rounded-full flex items-center justify-center">
+                <img src="./logo/logo2.png" alt="Logo" className="max-w-full max-h-full relative z-10 drop-shadow-lg bg-transparent" />
               </div>
               <div className="text-left">
                 <div className="text-lg font-semibold text-gray-900">Appointment</div>

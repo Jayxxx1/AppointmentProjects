@@ -7,6 +7,7 @@ import { projectService } from "../../services/projectService.js";
 import { appointmentService } from "../../services/appointmentService.js"; // ✅ แก้ path ให้ถูก
 
 import { Calendar, Clock, MapPin, FileText, User, AlertCircle, CheckCircle, Users } from "lucide-react";
+import TimePicker from '../../components/TimePicker.jsx';
 
 export default function CreateAppointment() {
   // ดึง user เพื่อส่งให้ Modal แสดง StudentID - Fullname
@@ -381,7 +382,7 @@ export default function CreateAppointment() {
         <p className="text-gray-600">กำหนดเวลาและเลือกรูปแบบการประชุม</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         <div>
           <label className="flex items-center space-x-2 text-base font-semibold text-gray-700 mb-2">
             <Calendar className="w-5 h-5 text-gray-500" />
@@ -411,15 +412,12 @@ export default function CreateAppointment() {
             <Clock className="w-5 h-5 text-gray-500" />
             <span>เวลาเริ่มต้น *</span>
           </label>
-          <input
-            type="time"
+          <TimePicker
+            id="startTime"
             name="startTime"
             value={formData.startTime}
-            onChange={handleChange}
-            className={`
-              w-full px-4 py-3 border-2 rounded-xl focus:outline-none transition-colors duration-200
-              ${stepErrors.startTime ? 'border-red-300 focus:border-red-500' : 'border-gray-300 focus:border-blue-500'}
-            `}
+            onChange={(val) => setFormData(prev => ({ ...prev, startTime: val }))}
+            className={`${stepErrors.startTime ? 'border-red-300' : ''} w-full`}
           />
           {stepErrors.startTime && (
             <div className="flex items-center space-x-2 text-red-600 mt-1">
@@ -434,15 +432,12 @@ export default function CreateAppointment() {
             <Clock className="w-5 h-5 text-gray-500" />
             <span>เวลาสิ้นสุด *</span>
           </label>
-          <input
-            type="time"
+          <TimePicker
+            id="endTime"
             name="endTime"
             value={formData.endTime}
-            onChange={handleChange}
-            className={`
-              w-full px-4 py-3 border-2 rounded-xl focus:outline-none transition-colors duration-200
-              ${stepErrors.endTime ? 'border-red-300 focus:border-red-500' : 'border-gray-300 focus:border-blue-500'}
-            `}
+            onChange={(val) => setFormData(prev => ({ ...prev, endTime: val }))}
+            className={`${stepErrors.endTime ? 'border-red-300' : ''} w-full`}
           />
           {stepErrors.endTime && (
             <div className="flex items-center space-x-2 text-red-600 mt-1">
@@ -690,7 +685,8 @@ export default function CreateAppointment() {
           <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
             <div className="p-6 md:p-8">{renderStepContent()}</div>
 
-            <div className="bg-gray-50 px-6 md:px-8 py-4 flex justify-between items-center">
+            <div className="bg-gray-50 px-4 md:px-8 py-4">
+              <div className="flex flex-col sm:flex-row sm:justify-between items-center gap-3">
               <button
                 onClick={prevStep}
                 disabled={currentStep === 1}
@@ -703,6 +699,7 @@ export default function CreateAppointment() {
                 ← ก่อนหน้า
               </button>
 
+              <div className="ml-auto">
               {currentStep < 4 ? (
                 <button
                   onClick={nextStep}
@@ -733,6 +730,8 @@ export default function CreateAppointment() {
                   )}
                 </button>
               )}
+              </div>
+              </div>
             </div>
           </div>
         </div>

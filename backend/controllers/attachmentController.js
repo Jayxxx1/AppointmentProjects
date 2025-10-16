@@ -177,13 +177,20 @@ export const deleteAttachment = async (req, res, next) => {
 export const downloadAttachment = async (req, res, next) => {
   try {
     const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(String(id || ''))) return res.status(400).json({ message: 'id ไม่ถูกต้อง' });
     const at = await Attachment.findById(id).lean();
-    if (!at) return res.status(404).json({ message: 'ไม่พบไฟล์' });
+    if (!at) return res.status(404).json({ message: 'ไม่พบไฟล์แนบ' });
     const bucket = getBucket();
+    if (!at.gridFsFileId) return res.status(404).json({ message: 'ไฟล์ที่เก็บอยู่บนเซิร์ฟเวอร์หายไป' });
     res.setHeader('Content-Type', at.mimeType || 'application/octet-stream');
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(at.originalName)}"`);
     const stream = bucket.openDownloadStream(at.gridFsFileId);
-    stream.on('error', next);
+    stream.on('error', (err) => {
+      console.error('GridFS download error:', err?.message || err);
+      // If file not found in GridFS, send 404
+      if (String(err?.message || '').toLowerCase().includes('file not found')) return res.status(404).json({ message: 'ไม่พบไฟล์บน GridFS' });
+      next(err);
+    });
     stream.pipe(res);
   } catch (err) { next(err); }
 };

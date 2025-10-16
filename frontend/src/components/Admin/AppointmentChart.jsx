@@ -35,6 +35,7 @@ export default function AppointmentChart({ items = [], days = 30 }) {
     return { daily, cumulative };
   }, [items, days]);
 
+  // Use a fixed internal coordinate system but make the SVG responsive via viewBox
   const width = 1690;
   const height = 280;
   const padding = { top: 12, right: 24, bottom: 40, left: 40 };
@@ -61,7 +62,8 @@ export default function AppointmentChart({ items = [], days = 30 }) {
       </div>
 
       <div className="overflow-x-auto">
-        <svg width={width} height={height}>
+        {/* responsive svg: scale via viewBox and Tailwind height classes */}
+        <svg className="w-full h-56 sm:h-72" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet">
           {/* grid lines */}
           {[0, 0.25, 0.5, 0.75, 1].map((t, idx) => {
             const y = padding.top + innerH * t;

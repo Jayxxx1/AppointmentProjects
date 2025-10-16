@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import ModalPortal from './ModalPortal';
 import { AiOutlineClose } from 'react-icons/ai';
 import { appointmentService } from '../../services/appointmentService';
+import TimePicker from '../TimePicker.jsx';
 
 const ScheduleNextModal = ({ isOpen, onClose, onCreated, defaultProjectId, defaultDate, previousAppointmentId, meetingSummaryId }) => {
   const [form, setForm] = useState({ project: defaultProjectId || '', title: '', description: '', date: defaultDate || '', startTime: '', endTime: '', meetingType: 'online', location: '', note: '' });
@@ -80,11 +81,11 @@ const ScheduleNextModal = ({ isOpen, onClose, onCreated, defaultProjectId, defau
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">เวลาเริ่ม *</label>
-                <input type="time" name="startTime" value={form.startTime} onChange={handleChange} className="mt-1 block w-full px-3 py-2 border rounded-md" />
+                <TimePicker id="next-start" name="startTime" value={form.startTime} onChange={(v) => setForm(prev => ({...prev, startTime: v}))} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">เวลาสิ้นสุด *</label>
-                <input type="time" name="endTime" value={form.endTime} onChange={handleChange} className="mt-1 block w-full px-3 py-2 border rounded-md" />
+                <TimePicker id="next-end" name="endTime" value={form.endTime} onChange={(v) => setForm(prev => ({...prev, endTime: v}))} />
               </div>
             </div>
             <div className="flex justify-end">

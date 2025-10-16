@@ -1,91 +1,25 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:linear-gradient(135deg,#22c55e 0%,#16a34a 100%);min-height:100vh">
-  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 20px">
-    <tr>
-      <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.15);overflow:hidden">
-          <!-- Header -->
-          <tr>
-            <td style="background:linear-gradient(135deg,#22c55e 0%,#16a34a 100%);padding:32px 40px;text-align:center">
-              <div style="background:rgba(255,255,255,0.2);width:64px;height:64px;border-radius:50%;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(10px)">
-                <span style="font-size:32px">✅</span>
-              </div>
-              <h1 style="margin:0;color:#ffffff;font-size:28px;font-weight:600;letter-spacing:-0.5px">ยืนยันการเลื่อนนัดหมาย</h1>
-            </td>
-          </tr>
-          
-          <!-- Content -->
-          <tr>
-            <td style="padding:40px">
-              <p style="margin:0 0 24px;color:#4a5568;font-size:16px;line-height:1.6">
-                นักศึกษาได้<strong>ยอมรับ</strong>คำขอเลื่อนนัดหมายสำหรับ <strong>{{title}}</strong> ของโปรเจกต์ <strong>{{projectName}}</strong> เรียบร้อยแล้ว
-              </p>
-              
-              <!-- New Appointment Details -->
-              <div style="background:#f0fff4;border-left:4px solid #22c55e;padding:24px;border-radius:8px;margin-bottom:24px">
-                <h2 style="margin:0 0 16px;color:#14532d;font-size:20px;font-weight:600">นัดหมายใหม่ของคุณ</h2>
-                
-                <table width="100%" cellpadding="0" cellspacing="0">
-                  <tr>
-                    <td style="padding:8px 0">
-                      <span style="display:inline-block;color:#16a34a;font-size:18px;margin-right:8px">🗓️</span>
-                      <span style="color:#14532d;font-size:15px">
-                        <strong>{{newDate}}</strong>
-                      </span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding:8px 0">
-                      <span style="display:inline-block;color:#16a34a;font-size:18px;margin-right:8px">⏰</span>
-                      <span style="color:#14532d;font-size:15px">
-                        {{newStartTime}} - {{newEndTime}}
-                      </span>
-                    </td>
-                  </tr>
-                </table>
-              </div>
-              
-              <!-- CTA Button -->
-              <table width="100%" cellpadding="0" cellspacing="0">
-                <tr>
-                  <td align="center" style="padding:8px 0">
-                    <a href="{{detailUrl}}" 
-                       style="display:inline-block;background:linear-gradient(135deg,#06b6d4 0%,#3b82f6 100%);color:#ffffff;text-decoration:none;padding:14px 36px;border-radius:12px;font-weight:600;font-size:15px;box-shadow:0 8px 20px rgba(59,130,246,0.15);">
-                      ดูรายละเอียดนัดหมายที่อัปเดต →
-                    </a>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          
-          <!-- Footer -->
-          <tr>
-            <td style="background:#f7fafc;padding:24px 40px;border-top:1px solid #e2e8f0">
-              <p style="margin:0;color:#718096;font-size:13px;line-height:1.6;text-align:center;">
-                นัดหมายนี้ได้รับการอัปเดตในระบบแล้ว
-              </p>
-            </td>
-          </tr>
-        </table>
-        
-        <!-- Email Footer -->
-        <table width="600" cellpadding="0" cellspacing="0" style="margin-top:24px">
-          <tr>
-            <td align="center" style="padding:0 20px">
-              <p style="margin:0;color:#ffffff;font-size:13px;opacity:0.9">
-                อีเมลนี้ส่งอัตโนมัติ กรุณาอย่าตอบกลับ
-              </p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ยืนยันการเลื่อนนัดหมาย</title>
+  </head>
+  <body style="margin:0;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#111;background:#ffffff;">
+    <div style="max-width:680px;margin:0 auto;border:1px solid #e6e6e6;padding:20px;border-radius:6px;">
+      <h1 style="font-size:18px;margin:0 0 12px">ยืนยันการเลื่อนนัดหมาย</h1>
+      <p style="margin:0 0 12px">หัวข้อ: <strong>{{title}}</strong></p>
+      <p style="margin:0 0 12px">โปรเจกต์: <strong>{{projectName}}</strong></p>
+
+      <div style="margin:12px 0 16px">
+        <p style="margin:0;font-weight:600">นัดหมายใหม่ของคุณ</p>
+        <p style="margin:6px 0 0">{{newDate}} • {{newStartTime}} - {{newEndTime}}</p>
+      </div>
+
+      <p style="margin:12px 0">ดูรายละเอียดนัดหมาย: <a href="{{detailUrl}}">{{detailUrl}}</a></p>
+
+      <hr style="border:none;border-top:1px solid #eee;margin:16px 0" />
+      <p style="font-size:12px;color:#666;margin:0">อีเมลนี้ส่งอัตโนมัติ โปรดอย่าตอบกลับ</p>
+    </div>
+  </body>
 </html>

@@ -67,6 +67,10 @@ export default function AdminAppointmentsPage() {
         text = 'ถูกปฏิเสธ';
         color = 'bg-rose-100 text-rose-800';
         break;
+      case 'completed':
+        text = 'เสร็จสิ้น';
+        color = 'bg-green-100 text-green-800';
+        break;
       case 'cancelled':
         text = 'ยกเลิก';
         color = 'bg-gray-100 text-gray-600';

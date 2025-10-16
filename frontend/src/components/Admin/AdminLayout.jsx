@@ -12,6 +12,9 @@ export default function AdminLayout() {
   // Optional: handle responsive sidebar behavior if needed
   useEffect(() => {
     const handleResize = () => {
+      // auto-open on larger screens
+      const shouldBeOpen = window.innerWidth >= 768;
+      setIsSidebarOpen(shouldBeOpen);
     };
     window.addEventListener('resize', handleResize);
     handleResize();
@@ -29,8 +32,10 @@ export default function AdminLayout() {
       )}
       {/* Sidebar container */}
       <div
+        id="admin-sidebar-container"
         className={`fixed inset-y-0 left-0 z-50 flex-shrink-0 transition-transform duration-300 ease-in-out
           ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:static md:translate-x-0`}
+        aria-hidden={!isSidebarOpen}
       >
         <AdminSidebar isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
       </div>

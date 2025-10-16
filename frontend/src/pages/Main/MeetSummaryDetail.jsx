@@ -53,15 +53,16 @@ export default function MeetSummaryDetail() {
       </div>
       <div className="mb-4">
         <h3 className="font-semibold">ไฟล์แนบ (สรุป)</h3>
-        {Array.isArray(doc.attachments) && doc.attachments.length > 0 ? (
+                {Array.isArray(doc.attachments) && doc.attachments.length > 0 ? (
           <ul>
             {doc.attachments.map(a => (
               <li key={a._id} className="flex items-center justify-between py-1">
-                <a href={attachmentService.downloadUrl(a._id)} className="text-blue-600 hover:underline">{a.originalName}</a>
+                <span className="text-blue-600">{a.originalName}</span>
                 <div>
+                  <button onClick={async () => { try { await attachmentService.download(a._id, a.originalName); } catch (e) { alert('ดาวน์โหลดล้มเหลว'); } }} className="text-sm text-blue-600 hover:underline mr-4">ดาวน์โหลด</button>
                   <button onClick={async () => {
                     try {
-                      if (!window.confirm('ยืนยันการลบไฟล์แนบนี้หรือไม่?')) return;
+                      if (!window.confirm('ยืนยันการลบไฟแนบนี้หรือไม่?')) return;
                       await attachmentService.remove(a._id);
                       const updated = await meetingSummaryService.get(id);
                       setDoc(updated);

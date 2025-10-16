@@ -37,9 +37,27 @@ export default function AppointmentAttachments({ ownerId }) {
   return (
     <ul className="space-y-2">
       {files.map(f => (
-        <li key={f._id} className="flex items-center justify-between py-1">
-          <a href={attachmentService.downloadUrl(f._id)} className="text-blue-600 hover:underline">{f.originalName || f.filename || 'ดาวน์โหลดไฟล์'}</a>
-          <div>
+        <li key={f._id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between py-1 gap-2">
+          <button onClick={async () => {
+            try {
+              await attachmentService.download(f._id, f.originalName || f.filename || 'ดาวน์โหลดไฟล์');
+            } catch (e) {
+              alert(e?.response?.data?.message || e?.message || 'ดาวน์โหลดไฟล์ไม่สำเร็จ');
+            }
+          }} className="text-left text-blue-600 hover:underline min-w-0 truncate">
+            {f.originalName || f.filename || 'ดาวน์โหลดไฟล์'}
+          </button>
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <button onClick={async () => {
+              try {
+                const ok = window.confirm('ยืนยันการดาวน์โหลดไฟล์?');
+                if (!ok) return;
+                await attachmentService.download(f._id, f.originalName || f.filename || 'download');
+              } catch (e) {
+                alert(e?.response?.data?.message || e?.message || 'ดาวน์โหลดไฟล์ไม่สำเร็จ');
+              }
+            }} className="px-3 py-1 rounded-md bg-gradient-to-r from-blue-500 to-purple-500 text-white text-sm w-full sm:w-auto text-center">ดาวน์โหลด</button>
+
             <button onClick={async () => {
               try {
                 if (!window.confirm('ยืนยันการลบไฟล์นี้หรือไม่?')) return;
@@ -49,7 +67,7 @@ export default function AppointmentAttachments({ ownerId }) {
               } catch (e) {
                 alert(e?.response?.data?.message || e?.message || 'ลบไฟล์ไม่สำเร็จ');
               }
-            }} className="ml-4 text-sm text-red-600">ลบ</button>
+            }} className="text-sm text-red-600">ลบ</button>
           </div>
         </li>
       ))}

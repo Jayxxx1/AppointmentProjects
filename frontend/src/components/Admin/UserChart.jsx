@@ -51,7 +51,7 @@ export default function UserChart({ users = [], days = 90 }) {
         <div className="text-sm text-gray-500">เส้นสีน้ำเงิน = ผู้สมัครใหม่ต่อวัน · เส้นสีเขียว = ผู้ใช้สะสม</div>
       </div>
       <div className="overflow-x-auto">
-        <svg width={width} height={height}>
+        <svg className="w-full h-56 sm:h-72" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet">
           {[0,0.25,0.5,0.75,1].map((t, idx) => {
             const y = padding.top + innerH * t;
             return <line key={idx} x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke="#f3f4f6" strokeWidth={1} />;

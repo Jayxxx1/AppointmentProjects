@@ -13,16 +13,15 @@ export default function Layout() {
 
   useEffect(() => {
     const handleResize = () => {
-      // Sidebar จะเปิดอัตโนมัติเมื่อหน้าจอมีขนาดใหญ่กว่าหรือเท่ากับ 768px
-      // setIsSidebarOpen(window.innerWidth >= 768);
+      // Auto-open sidebar on larger screens for better UX
+      const shouldBeOpen = window.innerWidth >= 768;
+      setIsSidebarOpen(shouldBeOpen);
     };
 
     window.addEventListener("resize", handleResize);
     handleResize();
 
-    return () => {
-      window.removeEventListener("resize", handleResize);
-    };
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   return (
@@ -50,6 +49,7 @@ export default function Layout() {
         className={`flex-grow flex flex-col transition-all duration-300 ease-in-out 
     ${isSidebarOpen ? 'md:ml-72' : 'md:ml-20'}
   `}
+        style={{ minHeight: '100vh' }}
       >
         <Header isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
 

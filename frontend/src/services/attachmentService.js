@@ -45,10 +45,36 @@ export const attachmentService = {
 
   // ✅ ดาวน์โหลดด้วย axios เพื่อส่ง Authorization header ได้
   async download(id, filename = 'download') {
-    const r = await client.get(
-      `/api/attachments/download/${encodeURIComponent(String(id))}`,
-      { responseType: 'blob' }
-    );
+    if (!id) throw new Error('Attachment ID is required for download.');
+    let r;
+    try {
+      r = await client.get(`/api/attachments/download/${encodeURIComponent(String(id))}`, { responseType: 'blob' });
+    } catch (err) {
+      // Try to extract server JSON message if available. When responseType='blob',
+      // axios places the body into resp.data as a Blob, so we need to read it.
+      const resp = err?.response;
+      if (resp && resp.data) {
+        try {
+          // If server sent JSON but axios treated it as blob, parse it
+          if (resp.data instanceof Blob) {
+            const txt = await resp.data.text();
+            try {
+              const json = JSON.parse(txt);
+              throw new Error(json?.message || JSON.stringify(json) || 'ดาวน์โหลดไฟล์ล้มเหลว');
+            } catch (parseErr) {
+              // not JSON
+              throw new Error(txt || (err?.message || 'ดาวน์โหลดไฟล์ล้มเหลว'));
+            }
+          }
+        } catch (readErr) {
+          // ignore and fallthrough to generic
+          throw new Error(readErr?.message || (err?.message || 'ดาวน์โหลดไฟล์ล้มเหลว'));
+        }
+        const serverMsg = resp.data?.message || resp.data || resp.statusText;
+        throw new Error(serverMsg || (err?.message || 'ดาวน์โหลดไฟล์ล้มเหลว'));
+      }
+      throw new Error(err?.message || 'ดาวน์โหลดไฟล์ล้มเหลว');
+    }
 
     // ตั้งชื่อไฟล์จาก header ถ้ามี
     let name = filename;

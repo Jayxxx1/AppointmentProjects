@@ -63,9 +63,24 @@ export const createAppointment = async (req, res, next) => {
     meetingNotes: note,
     project: projectId,
     createBy: req.user.id,
-    participants: proj.members,
+    // participants default to project members (students). If advisor creates the appointment
+    // we still set participants to project members so students receive notifications and can act.
+    participants: Array.isArray(proj.members) ? proj.members : [],
     ...extra,
   });
+
+  // If this is a follow-up created by the advisor, set a 3-day expiry window for student approval
+  try {
+    if ((doc.isNextAppointment || doc.previousAppointment) && proj && String(proj.advisor) === String(req.user.id)) {
+      const expires = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000); // 3 days
+      doc.followUpExpiresAt = expires;
+      // ensure status remains pending until student accepts
+      doc.status = 'pending';
+      await doc.save();
+    }
+  } catch (followErr) {
+    console.error('Failed to set followUpExpiresAt for follow-up appointment:', followErr);
+  }
     // Attach uploaded files (if any) to this appointment using GridFS + Attachment documents
     if (Array.isArray(req.files) && req.files.length) {
       try {
@@ -99,24 +114,29 @@ export const createAppointment = async (req, res, next) => {
 
     const populated = await Appointment.findById(doc._id).populate('createBy').populate({ path: 'project', populate: { path: 'advisor members' } });
 
-    // Send email to advisor
-    try {
-        const advisorEmail = populated?.project?.advisor?.email;
-        if (advisorEmail) {
-      // If this appointment is a follow-up (isNextAppointment or previousAppointment set) use a different headline/subject
+  // Send creation email to all relevant recipients (advisor, creator, project members)
+  try {
+    const recipients = getRelevantEmails(populated);
+    if (recipients && recipients.length > 0) {
       const isFollowUp = !!(populated.isNextAppointment || populated.previousAppointment);
-      const headline = isFollowUp ? 'สร้างนัดหมายติดตาม (Follow-up)' : 'คุณมีการนัดหมายใหม่รอดำเนินการ';
+      const headline = isFollowUp ? 'สร้างนัดหมายติดตาม (Follow-up)' : 'มีการนัดหมายใหม่รอดำเนินการ';
       const message = isFollowUp
         ? `${populated.createBy.fullName || populated.createBy.username} ได้สร้างนัดหมายครั้งถัดไปสำหรับโปรเจกต์ "${populated.project.name}" (เป็นการติดตามจากการประชุมก่อนหน้า)`
-        : `${populated.createBy.fullName || populated.createBy.username} ได้สร้างนัดหมายใหม่สำหรับโปรเจกต์ "${populated.project.name}" และกำลังรอการอนุมัติจากคุณ`;
-      const subject = isFollowUp ? `[นัดหมายติดตาม] นัดหมาย: ${populated.title}` : `[รออนุมัติ] นัดหมายใหม่: ${populated.title}`;
+        : `${populated.createBy.fullName || populated.createBy.username} ได้สร้างนัดหมายใหม่สำหรับโปรเจกต์ "${populated.project.name}"`;
+      const subject = isFollowUp ? `[นัดหมายติดตาม] นัดหมาย: ${populated.title}` : `[นัดหมายใหม่] ${populated.title}`;
 
       const emailHtml = renderAppointmentEmail({ appointment: populated, headline, message });
-      await sendEmail({ to: advisorEmail, subject, html: emailHtml });
-        }
-    } catch (mailErr) {
-        console.error('Send creation email failed:', mailErr?.message || mailErr);
+      try {
+        console.info('Sending creation email to recipients', { to: recipients, subject });
+        await sendEmail({ to: recipients, subject, html: emailHtml });
+        console.info('Creation email sent', { to: recipients, subject });
+      } catch (mailErr) {
+        console.error('Send creation email failed', { to: recipients, subject, err: mailErr?.message || mailErr });
+      }
     }
+  } catch (mailErr) {
+    console.error('Send creation email failed (outer):', mailErr?.message || mailErr);
+  }
 
     res.status(201).json(populated);
   } catch (e) { next(e); }
@@ -136,8 +156,9 @@ export const updateAppointmentStatus = async (req, res, next) => {
         const appointment = await Appointment.findById(id).populate({ path: 'project', populate: { path: 'advisor members' } }).populate('createBy');
         if (!appointment) return res.status(404).json({ message: 'ไม่พบนัดหมาย' });
 
-        const isAdvisor = appointment.project.advisor._id.equals(currentUserId);
-        const isCreator = appointment.createBy._id.equals(currentUserId);
+  const isAdvisor = appointment.project.advisor._id.equals(currentUserId);
+  const isCreator = appointment.createBy._id.equals(currentUserId);
+  const isParticipant = Array.isArray(appointment.participants) && appointment.participants.some(p => String(p._id || p) === String(currentUserId));
 
     // Prevent changes to an already-approved appointment by non-advisor/non-admin
     if (appointment.status === 'approved' && req.user.role !== 'admin' && !isAdvisor) {
@@ -150,18 +171,36 @@ export const updateAppointmentStatus = async (req, res, next) => {
         }
 
         // Authorization check
-        if (status === 'cancelled' && !isCreator) {
-            return res.status(403).json({ message: 'เฉพาะผู้สร้างนัดหมายเท่านั้นที่สามารถยกเลิกได้' });
-        }
+    // Students (participants) can cancel a pending appointment they are part of; require a reason
+    if (status === 'cancelled') {
+      if (!isCreator && !isParticipant && req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'เฉพาะผู้เกี่ยวข้องเท่านั้นที่สามารถยกเลิกได้นี้' });
+      }
+      if (!reason && !isAdvisor && req.user.role !== 'admin') {
+        return res.status(400).json({ message: 'กรุณาระบุเหตุผลการยกเลิก' });
+      }
+    }
         // completed can be set by advisor or creator (or admin)
         if (status === 'completed' && !(isAdvisor || req.user.role === 'admin')) {
             return res.status(403).json({ message: 'เฉพาะผู้เกี่ยวข้องเท่านั้นที่สามารถทำเครื่องหมายว่าเสร็จสิ้นได้' });
         }
-        if (['approved', 'rejected'].includes(status) && !isAdvisor) {
-            return res.status(403).json({ message: 'เฉพาะอาจารย์ที่ปรึกษาเท่านั้นที่สามารถอนุมัติหรือปฏิเสธได้' });
+    // Approve/Reject rules:
+    // - If this appointment is a follow-up created by the advisor (isNextAppointment or previousAppointment)
+    //   then the advisor should NOT approve it; students (participants) must approve. Advisors may only request reschedule.
+    if (['approved', 'rejected'].includes(status)) {
+      const isFollowUp = !!(appointment.isNextAppointment || appointment.previousAppointment);
+      if (isFollowUp) {
+        // On follow-up: students (participants) may approve; advisor cannot.
+        if (!isParticipant && !isCreator && req.user.role !== 'admin') {
+          return res.status(403).json({ message: 'เฉพาะผู้เข้าร่วม (นักศึกษา) เท่านั้นที่สามารถอนุมัติ/ปฏิเสธสำหรับนัดติดตามนี้ได้' });
         }
+      } else {
+        // Non-follow-up appointments: only advisor can approve/reject
+        if (!isAdvisor) return res.status(403).json({ message: 'เฉพาะอาจารย์ที่ปรึกษาเท่านั้นที่สามารถอนุมัติหรือปฏิเสธได้' });
+      }
+    }
         
-        appointment.status = status;
+    appointment.status = status;
         if (status === 'rejected' && reason) {
             appointment.reason = reason;
         }
@@ -247,7 +286,27 @@ export const updateAppointmentStatus = async (req, res, next) => {
           }
         }
 
-        await appointment.save();
+        // If cancelled, persist status and reason (soft-cancel). Admins can still view cancelled appointments.
+        if (status === 'cancelled') {
+          try {
+            appointment.status = 'cancelled';
+            if (reason) appointment.reason = reason;
+            await appointment.save();
+            // send cancellation email to relevant parties
+            try {
+              const allEmails = getRelevantEmails(appointment);
+              const template = 'appointment-rejected.html';
+              const headline = 'นัดหมายถูกยกเลิก';
+              const message = `การนัดหมายเรื่อง "${appointment.title}" ถูกยกเลิกโดย ${appointment.createBy.fullName || appointment.createBy.username}`;
+              const emailHtml = renderAppointmentEmail({ appointment, headline, message, reason, template });
+              await sendEmail({ to: allEmails, subject: `[ยกเลิก] นัดหมาย: ${appointment.title}`, html: emailHtml });
+            } catch (mailErr) { console.error('Send cancellation email failed', mailErr); }
+            return res.json(appointment);
+          } catch (saveErr) {
+            console.error('Failed to save cancelled appointment:', saveErr);
+            return res.status(500).json({ message: 'ล้มเหลวในการยกเลิกนัดหมาย' });
+          }
+        }
 
         // Email notification logic
         try {
@@ -262,25 +321,33 @@ export const updateAppointmentStatus = async (req, res, next) => {
                 headline = "นัดหมายของคุณได้รับการอนุมัติแล้ว";
                 message = `การนัดหมายเรื่อง "${appointment.title}" ในวันที่ ${appointment.date} เวลา ${appointment.startTime} ได้รับการอนุมัติจากอาจารย์ที่ปรึกษาแล้ว`;
             } else if (status === 'rejected') {
-                template = 'appointment-rejected.html'; // Use the new rejection template
+                template = 'appointment-rejected.html';
                 subject = `[ถูกปฏิเสธ] นัดหมาย: ${appointment.title}`;
                 headline = "นัดหมายของคุณถูกปฏิเสธ";
-                message = `การนัดหมายเรื่อง "${appointment.title}" ถูกปฏิเสธโดยอาจารย์ที่ปรึกษา ${reason ? `ด้วยเหตุผล: ${reason}` : ''}`;
+                message = `การนัดหมายเรื่อง "${appointment.title}" ถูกปฏิเสธ${reason ? ` ด้วยเหตุผล: ${reason}` : ''}`;
             } else if (status === 'cancelled') {
+                // Use the same rejection/cancel template for cancellations
+                template = 'appointment-rejected.html';
                 subject = `[ยกเลิก] นัดหมาย: ${appointment.title}`;
                 headline = "นัดหมายถูกยกเลิก";
                 message = `การนัดหมายเรื่อง "${appointment.title}" ถูกยกเลิกโดย ${appointment.createBy.fullName || appointment.createBy.username}`;
             }
 
-            if(subject) {
+            if (subject) {
                 const icsContent = buildIcs(appointment);
                 const emailHtml = renderAppointmentEmail({ appointment, headline, message, reason, template });
-                await sendEmail({
-                    to: allEmails,
-                    subject,
-                    html: emailHtml,
-                    attachments: status === 'approved' ? [{ filename: 'บันทึกลงปฏิทิน.ics', content: icsContent, contentType: 'text/calendar' }] : []
-                });
+                try {
+                  console.info('Sending status email', { to: allEmails, subject, status });
+                  await sendEmail({
+                      to: allEmails,
+                      subject,
+                      html: emailHtml,
+                      attachments: status === 'approved' ? [{ filename: 'บันทึกลงปฏิทิน.ics', content: icsContent, contentType: 'text/calendar' }] : []
+                  });
+                  console.info('Status email sent', { to: allEmails, subject, status });
+                } catch (mailErr) {
+                  console.error(`Send ${status} email failed`, { to: allEmails, subject, status, err: mailErr?.message || mailErr });
+                }
             }
         } catch (mailErr) {
             console.error(`Send ${status} email failed:`, mailErr?.message || mailErr);
@@ -330,18 +397,23 @@ export const requestReschedule = async (req, res, next) => {
             
             const uniqueEmails = [...new Set(studentEmails)];
 
-            if (uniqueEmails.length > 0) {
-                const emailHtml = renderRescheduleRequestEmail({
-                    appointment,
-                    rescheduleDetails: appointment.reschedule,
-                });
-
-                await sendEmail({
-                    to: uniqueEmails,
-                    subject: `[ขอเลื่อนนัด] นัดหมาย: ${appointment.title}`,
-                    html: emailHtml,
-                });
-            }
+      if (uniqueEmails.length > 0) {
+        const emailHtml = renderRescheduleRequestEmail({
+          appointment,
+          rescheduleDetails: appointment.reschedule,
+        });
+        try {
+          console.info('Sending reschedule request email', { to: uniqueEmails, subject: `[ขอเลื่อนนัด] นัดหมาย: ${appointment.title}` });
+          await sendEmail({
+            to: uniqueEmails,
+            subject: `[ขอเลื่อนนัด] นัดหมาย: ${appointment.title}`,
+            html: emailHtml,
+          });
+          console.info('Reschedule request email sent', { to: uniqueEmails, subject: `[ขอเลื่อนนัด] นัดหมาย: ${appointment.title}` });
+        } catch (mailErr) {
+          console.error('Send reschedule request email failed', { to: uniqueEmails, subject: `[ขอเลื่อนนัด] นัดหมาย: ${appointment.title}`, err: mailErr?.message || mailErr });
+        }
+      }
         } catch(mailErr) {
             console.error('Send reschedule request email failed:', mailErr?.message || mailErr);
         }
@@ -404,43 +476,72 @@ export const respondToReschedule = async (req, res, next) => {
       appointment.status = "rejected"; // **[MODIFIED]** Set status to rejected instead of approved
     }
 
-    appointment.reschedule = null; // Clear the reschedule request
+    // Record responder info and any provided reason on the reschedule object before clearing
+    try {
+      appointment.reschedule = appointment.reschedule || {};
+      appointment.reschedule.response = {
+        responder: req.user.id,
+        accepted: !!accepted,
+        reason: reason || undefined,
+        respondedAt: new Date(),
+      };
+    } catch (respErr) {
+      console.error('Failed to attach reschedule response to appointment object:', respErr);
+    }
+
+    // Persist changes; we keep the reschedule object (which now contains the response) for audit and UI
     await appointment.save();
 
     // Send confirmation email to the advisor
-    try {
+        try {
       if (advisorEmail) {
-        const emailHtml = renderRescheduleResponseEmail({
+        // Use existing templates: reschedule-accepted.html or reschedule-rejected.html
+        const template = accepted ? 'reschedule-accepted.html' : 'reschedule-rejected.html';
+        const emailHtml = renderAppointmentEmail({
           appointment: accepted ? appointment : { ...appointment.toObject(), ...originalAppointmentDetails },
-          accepted,
+          headline: accepted ? 'นักศึกษายืนยันการเลื่อนนัดแล้ว' : 'นักศึกษาปฏิเสธการเลื่อนนัด',
+          message: accepted ? 'นักศึกษายืนยันเวลาใหม่แล้ว' : (reason ? `นักศึกษาให้เหตุผล: ${reason}` : ''),
           reason,
-        });
-
-        await sendEmail({
-          to: advisorEmail, // Only send to advisor
-          subject: accepted
+        }, template);
+        const subjectLine = accepted
             ? `[ยืนยันเวลาใหม่] นัดหมาย: ${appointment.title}`
-            : `[ปฏิเสธเวลาใหม่] นัดหมาย: ${appointment.title}`,
-          html: emailHtml,
-          attachments: accepted
-            ? [
-                {
-                  filename: "บันทึกลงปฏิทิน.ics",
-                  content: buildIcs(appointment),
-                  contentType: "text/calendar",
-                },
-              ]
-            : [],
-        });
+            : `[ปฏิเสธเวลาใหม่] นัดหมาย: ${appointment.title}`;
+        try {
+          console.info('Sending reschedule response email', { to: advisorEmail, subject: subjectLine, accepted });
+          await sendEmail({
+            to: advisorEmail, // Only send to advisor
+            subject: subjectLine,
+            html: emailHtml,
+            attachments: accepted
+              ? [
+                  {
+                    filename: "บันทึกลงปฏิทิน.ics",
+                    content: buildIcs(appointment),
+                    contentType: "text/calendar",
+                  },
+                ]
+              : [],
+          });
+          console.info('Reschedule response email sent', { to: advisorEmail, subject: subjectLine, accepted });
+        } catch (mailErr) {
+          console.error('Send reschedule response email failed', { to: advisorEmail, subject: subjectLine, accepted, err: mailErr?.message || mailErr });
+        }
       }
     } catch (mailErr) {
       console.error(
-        "Send reschedule response email failed:",
+        "Send reschedule response email failed (outer):",
         mailErr?.message || mailErr
       );
     }
 
-    res.json(appointment);
+    // Return populated appointment so frontend has resolver user info
+    const populated = await Appointment.findById(appointment._id)
+      .populate('participants', '_id username email role fullName studentId')
+      .populate('createBy', '_id username email role fullName studentId')
+      .populate({ path: 'reschedule.response.responder', select: '_id username email role fullName studentId' })
+      .populate({ path: 'project', select: 'name advisor members', populate: [ { path: 'advisor', select: '_id username email role fullName studentId' }, { path: 'members', select: '_id username email role fullName studentId' } ] });
+
+    res.json(populated);
   } catch (e) {
     next(e);
   }
@@ -452,35 +553,72 @@ export const getMyAppointments = async (req, res, next) => {
     const userId = req.user.id;
     const includeHistory =
       String(req.query.history || "").toLowerCase() === "true";
+    const isAdmin = req.user.role === 'admin';
     const myProjectIds = await Project.find({
       $or: [{ members: userId }, { advisor: userId }],
     }).distinct("_id");
 
-    const statusFilter = includeHistory
-      ? {
-          $in: [
-            "pending",
-            "approved",
-            "rejected",
-            "cancelled",
-            "completed",
-            "reschedule_requested",
-            "expired",
-          ],
-        }
-      : { $nin: ["cancelled", "completed", "rejected"] }; // **[MODIFIED]** Keep 'reschedule_requested' in the main list
+    // If history is requested, include historical statuses. However, non-admin users should NOT
+    // receive cancelled appointments in their history view (they are retained in DB but hidden).
+    // Admins may view cancelled appointments when history=true.
+    const historyStatuses = [
+      'pending',
+      'approved',
+      'rejected',
+      'completed',
+      'reschedule_requested',
+      'expired',
+    ];
+    if (includeHistory) {
+      if (isAdmin) {
+        // Admins can see cancelled items as well
+        historyStatuses.splice(3, 0, 'cancelled'); // insert cancelled after rejected
+        // e.g. ['pending','approved','rejected','cancelled','completed',...]
+      }
+      const statusFilter = { $in: historyStatuses };
+      
+      // Auto-expire any follow-up appointments that exceeded their followUpExpiresAt
+      try {
+        await Appointment.updateMany({ isNextAppointment: true, status: 'pending', followUpExpiresAt: { $lt: new Date() } }, { $set: { status: 'expired' } }).exec();
+      } catch (expErr) { console.error('Failed to auto-expire follow-up appointments:', expErr); }
 
+      const items = await Appointment.find({
+        $or: [
+          { createBy: userId },
+          { participants: userId },
+          { project: { $in: await Project.find({ $or: [{ members: userId }, { advisor: userId }] }).distinct('_id') } },
+        ],
+        status: statusFilter,
+      })
+        .sort({ startAt: -1 })
+        .populate('participants', '_id username email role fullName studentId')
+        .populate('createBy', '_id username email role fullName studentId')
+        .populate({ path: 'reschedule.response.responder', select: '_id username email role fullName studentId' })
+        .populate({
+          path: 'project',
+          select: 'name advisor members',
+          populate: [
+            { path: 'advisor', select: '_id username email role fullName studentId' },
+            { path: 'members', select: '_id username email role fullName studentId' },
+          ],
+        })
+        .lean();
+
+      return res.json(items);
+    }
+    // Non-history: exclude cancelled, completed, rejected
     const items = await Appointment.find({
       $or: [
         { createBy: userId },
         { participants: userId },
         { project: { $in: myProjectIds } },
-            ],
-            status: statusFilter,
+      ],
+      status: { $nin: ['cancelled', 'completed', 'rejected'] },
     })
       .sort({ startAt: -1 })
       .populate('participants', '_id username email role fullName studentId')
       .populate('createBy', '_id username email role fullName studentId')
+      .populate({ path: 'reschedule.response.responder', select: '_id username email role fullName studentId' })
       .populate({
         path: 'project',
         select: 'name advisor members',
@@ -498,28 +636,36 @@ export const getMyAppointments = async (req, res, next) => {
 export const getAppointmentById = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const doc = await Appointment.findById(id)
-            .populate('participants', '_id username email role fullName studentId')
-            .populate('createBy', '_id username email role fullName studentId')
-            .populate({
-                path: 'project',
-                select: 'name advisor members',
-                populate: [
-                    { path: 'advisor', select: '_id username email role fullName studentId' },
-                    { path: 'members', select: '_id username email role fullName studentId' },
-                ],
-            });
+    const doc = await Appointment.findById(id)
+      .populate('participants', '_id username email role fullName studentId')
+      .populate('createBy', '_id username email role fullName studentId')
+      .populate({ path: 'reschedule.response.responder', select: '_id username email role fullName studentId' })
+      .populate({
+        path: 'project',
+        select: 'name advisor members',
+        populate: [
+          { path: 'advisor', select: '_id username email role fullName studentId' },
+          { path: 'members', select: '_id username email role fullName studentId' },
+        ],
+      });
         if (!doc) return res.status(404).json({ message: 'Not found' });
+
+        // If this is a follow-up that expired, update status before returning
+        try {
+          if (doc.isNextAppointment && doc.status === 'pending' && doc.followUpExpiresAt && new Date(doc.followUpExpiresAt) < new Date()) {
+            doc.status = 'expired';
+            await doc.save();
+          }
+        } catch (expErr) { console.error('Failed to mark follow-up expired:', expErr); }
 
         const uid = req.user.id.toString();
         const isParticipant = doc.participants.some(p => p._id.toString() === uid);
         const isCreator = doc.createBy._id.toString() === uid;
         const isAdvisor = doc.project?.advisor?._id?.toString() === uid;
         const isAdmin = req.user.role === 'admin';
-
-        if (!(isParticipant || isCreator || isAdvisor || isAdmin)) {
-            return res.status(403).json({ message: 'ไม่มีสิทธิ์เข้าถึงหน้านี้' });
-        }
+    if (!(isParticipant || isCreator || isAdvisor || isAdmin)) {
+      return res.status(403).json({ message: 'ไม่มีสิทธิ์เข้าถึงหน้านี้' });
+    }
         res.json(doc.toObject ? doc.toObject() : doc);
     } catch (e) {
         next(e);

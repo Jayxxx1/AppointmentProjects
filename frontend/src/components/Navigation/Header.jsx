@@ -30,16 +30,18 @@ export default function Header({ isSidebarOpen, toggleSidebar }) {
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-xl shadow-lg border-b border-gray-200/50 px-4 py-3 md:px-6 md:py-4 transition-all duration-300">
-      {/* Glass morphism background effect */}
-      <div className="absolute inset-0 bg-gradient-to-r from-blue-50/50 via-white/50 to-purple-50/50"></div>
+  {/* Glass morphism background effect (non-interactive) */}
+  <div className="absolute inset-0 bg-gradient-to-r from-blue-50/50 via-white/50 to-purple-50/50 pointer-events-none"></div>
       
       <div className="relative z-10 flex items-center w-full">
         
         {/* Hamburger Menu Button */}
         <button
           onClick={toggleSidebar}
+          aria-controls="app-sidebar"
+          aria-expanded={isSidebarOpen}
           className="group p-3 hover:bg-gradient-to-r hover:from-blue-100 hover:to-purple-100 rounded-xl transition-all duration-300 flex-shrink-0 hover:scale-110 hover:shadow-md"
-          title={isSidebarOpen ? "ยุบ Sidebar" : "ขยาย Sidebar"}
+          title={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
         >
           <svg 
             xmlns="http://www.w3.org/2000/svg" 
@@ -71,16 +73,7 @@ export default function Header({ isSidebarOpen, toggleSidebar }) {
         {/* Right Side - Enhanced Controls */}
         <div className="flex items-center space-x-3 sm:space-x-4 flex-shrink-0 ml-auto">
           
-          {/* Enhanced Language Selector */}
-          <div className="relative group">
-            <select className="appearance-none bg-white/90 backdrop-blur-sm border-2 border-gray-200/50 rounded-xl px-3 py-2 sm:px-4 sm:py-2.5 pr-8 sm:pr-10 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400 transition-all duration-300 cursor-pointer hover:bg-white hover:shadow-md">
-              <option>🇹🇭 TH</option>
-              <option>🇺🇸 EN</option>
-            </select>
-            <div className="absolute inset-y-0 right-0 flex items-center px-2 sm:px-3 pointer-events-none">
-              <FiChevronDown className="w-4 h-4 text-gray-400 group-hover:text-blue-500 transition-colors duration-200" />
-            </div>
-          </div>
+          
 
           {/* Enhanced Notification Bell */}
           <button className="relative group p-2.5 sm:p-3 text-gray-500 hover:text-white hover:bg-gradient-to-r hover:from-red-400 hover:to-pink-500 rounded-xl transition-all duration-300 hover:scale-110 hover:shadow-lg hover:shadow-red-500/25">
@@ -216,25 +209,7 @@ export default function Header({ isSidebarOpen, toggleSidebar }) {
         />
       </div>
 
-      <style jsx>{`
-        @keyframes slide-down {
-          from { opacity: 0; transform: translateY(-10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        
-        @keyframes fade-in-down {
-          from { opacity: 0; transform: translateY(-10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-
-        .animate-slide-down {
-          animation: slide-down 0.3s ease-out;
-        }
-
-        .animate-fade-in-down {
-          animation: fade-in-down 0.2s ease-out;
-        }
-      `}</style>
+      {/* animations are provided globally in src/index.css */}
     </header>
   );
 }

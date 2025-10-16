@@ -52,6 +52,17 @@ function renderSimple(html, vars = {}) {
   // meetingNotes may contain plain text; escape for safety
   out = out.replace(/\{\{meetingNotes\}\}/g, esc(vars.meetingNotes ?? ''));
   out = out.replace(/\{\{reason\}\}/g, esc(vars.reason ?? ''));
+  // Replace any remaining simple {{key}} placeholders from vars (except keys that may contain HTML)
+  const skipKeys = new Set(['message', 'descriptionHtml', 'meetingNotes', 'reason']);
+  for (const k of Object.keys(vars || {})) {
+    if (skipKeys.has(k)) continue;
+    try {
+      const regex = new RegExp(`\\{\\{${k}\\}\\}`, 'g');
+      out = out.replace(regex, esc(vars[k] ?? ''));
+    } catch (e) {
+      // ignore regex construction errors for unusual keys
+    }
+  }
   return out;
 }
 
@@ -65,15 +76,21 @@ export function renderRescheduleRequestEmail({ appointment, rescheduleDetails })
   const approveUrl = `${FE_URL}/appointments/${appointment._id}/reschedule?action=approve`;
   const rejectUrl = `${FE_URL}/appointments/${appointment._id}/reschedule?action=reject`;
 
+  // If advisor changed only the day but left start/end times empty, fall back to the
+  // appointment's existing start/end time so the email always shows a valid time.
+  const newStartTime = rescheduleDetails.startTime || appointment.startTime || '';
+  const newEndTime = rescheduleDetails.endTime || appointment.endTime || '';
+  const newDate = rescheduleDetails.date || appointment.date || '';
+
   const vars = {
     projectName: appointment.project?.name || '(ไม่มีชื่อโปรเจกต์)',
     title: appointment.title,
     originalDate: appointment.date,
     originalStartTime: appointment.startTime,
     originalEndTime: appointment.endTime,
-    newDate: rescheduleDetails.date,
-    newStartTime: rescheduleDetails.startTime,
-    newEndTime: rescheduleDetails.endTime,
+    newDate,
+    newStartTime,
+    newEndTime,
     reason: rescheduleDetails.reason || '(ไม่ได้ระบุเหตุผล)',
     approveUrl,
     rejectUrl,
@@ -137,6 +154,9 @@ export function renderAppointmentEmail({ appointment, headline, message, reason 
     date: appointment.date,
     startTime: appointment.startTime,
     endTime: appointment.endTime,
+    newDate: appointment.date,
+    newStartTime: appointment.startTime,
+    newEndTime: appointment.endTime,
     meetingType: appointment.meetingType,
     locationSuffix: appointment.meetingType === 'offline' && appointment.location ? ` @ ${appointment.location}` : '',
     detailUrl: detailUrl,

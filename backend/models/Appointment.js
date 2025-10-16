@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-// โครงสร้างสำหรับเก็บข้อมูลการขอเลื่อนนัดหมาย
+// การขอเลื่อนนัดหมาย
 const rescheduleSchema = new mongoose.Schema({
   proposedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   reason: { type: String, trim: true },
@@ -9,6 +9,13 @@ const rescheduleSchema = new mongoose.Schema({
   endTime: { type: String, required: true },       // HH:mm
   startAt: { type: Date, required: true },         // absolute start time
   endAt: { type: Date, required: true },         // absolute end time
+  // Store the student's response to this reschedule request (optional)
+  response: {
+    responder: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    accepted: { type: Boolean },
+    reason: { type: String, trim: true },
+    respondedAt: { type: Date },
+  },
   createdAt: { type: Date, default: Date.now },
 }, { _id: false });
 
@@ -50,6 +57,8 @@ const appointmentSchema = new mongoose.Schema({
   previousAppointment: { type: mongoose.Schema.Types.ObjectId, ref: 'Appointment', default: null },
   // If this appointment was created from a MeetingSummary, reference it
   meetingSummary: { type: mongoose.Schema.Types.ObjectId, ref: 'MeetingSummary', default: null },
+  // If this is a follow-up created by advisor, this field marks when the follow-up expires
+  followUpExpiresAt: { type: Date, default: null, index: true },
 
   activity: [
     {

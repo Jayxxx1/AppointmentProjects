@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ModalPortal from './ModalPortal';
 import { AiOutlineClose } from 'react-icons/ai';
+import TimePicker from '../TimePicker.jsx';
 
 const RescheduleModal = ({ isOpen, onClose, onSubmit, appointment }) => {
   const [isLoading, setIsLoading] = useState(false);
@@ -48,7 +49,7 @@ const RescheduleModal = ({ isOpen, onClose, onSubmit, appointment }) => {
   return (
     <ModalPortal>
       <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50">
-        <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 md:p-8 m-4">
+  <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl p-4 md:p-8 m-4 max-h-[90vh] overflow-auto">
           {/* Loading Overlay */}
           {isLoading && (
             <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col justify-center items-center rounded-2xl z-20">
@@ -93,23 +94,21 @@ const RescheduleModal = ({ isOpen, onClose, onSubmit, appointment }) => {
               </div>
               <div>
                 <label htmlFor="startTime" className="block text-sm font-medium text-gray-700">เวลาเริ่ม</label>
-                <input
-                  type="time"
-                  id="startTime"
+                <TimePicker
+                  id="res-startTime"
+                  name="startTime"
                   value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  onChange={(v) => setStartTime(v)}
                   disabled={isLoading}
                 />
               </div>
               <div>
                 <label htmlFor="endTime" className="block text-sm font-medium text-gray-700">เวลาสิ้นสุด</label>
-                <input
-                  type="time"
-                  id="endTime"
+                <TimePicker
+                  id="res-endTime"
+                  name="endTime"
                   value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  onChange={(v) => setEndTime(v)}
                   disabled={isLoading}
                 />
               </div>
@@ -126,14 +125,20 @@ const RescheduleModal = ({ isOpen, onClose, onSubmit, appointment }) => {
                 disabled={isLoading}
               />
             </div>
-            <div className="flex justify-end pt-2">
-              <button
-                type="submit"
-                className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold rounded-lg shadow-md hover:from-blue-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={isLoading}
-              >
-                ส่งคำขอ
-              </button>
+            <div className="pt-2">
+              <div className="flex flex-col sm:flex-row sm:justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+                  disabled={isLoading}
+                >ยกเลิก</button>
+                <button
+                  type="submit"
+                  className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold rounded-lg shadow-md hover:from-blue-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isLoading}
+                >ส่งคำขอ</button>
+              </div>
             </div>
           </form>
         </div>

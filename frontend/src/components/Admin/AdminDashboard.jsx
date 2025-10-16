@@ -68,6 +68,7 @@ export default function AdminDashboard() {
       case "approved": return { text: "อนุมัติแล้ว", color: "bg-green-50 text-green-700 border-green-200" };
       case "reschedule_requested": return { text: "ขอเลื่อนนัด", color: "bg-blue-50 text-blue-700 border-blue-200" };
       case "rejected": return { text: "ถูกปฏิเสธ", color: "bg-red-50 text-red-700 border-red-200" };
+      case "completed": return { text: "เสร็จสิ้น", color: "bg-green-50 text-green-700 border-green-200" };
       case "cancelled": return { text: "ยกเลิก", color: "bg-gray-50 text-gray-600 border-gray-200" };
       case "expired": return { text: "หมดอายุ", color: "bg-gray-50 text-gray-600 border-gray-200" };
       default: return { text: s || "-", color: "bg-gray-50 text-gray-600 border-gray-200" };
@@ -84,15 +85,13 @@ export default function AdminDashboard() {
       rejected: 0,
       cancelled: 0,
       expired: 0,
-      upcomingWithin7d: 0,
+
     };
     const now = new Date();
     const in7 = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     for (const it of items) {
       const s = it?.status || "";
       if (m[s] !== undefined) m[s]++;
-      const dt = toDate(it);
-      if (dt && dt >= now && dt <= in7) m.upcomingWithin7d++;
     }
     return m;
   }, [items]);
@@ -133,7 +132,7 @@ export default function AdminDashboard() {
   }, [items]);
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
+    <div className="p-6 bg-gray-50 min-h-[60vh]">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
@@ -150,18 +149,17 @@ export default function AdminDashboard() {
       </div>
 
       {/* Metrics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <MetricCard icon={CalendarClock} label="นัดหมายทั้งหมด" value={metrics.total} color="gray" />
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <MetricCard icon={CalendarClock} label="นัดหมายทั้งหมด" value={metrics.total} color="gray" />
         <MetricCard icon={Clock} label="รอดำเนินการ" value={metrics.pending} color="orange" />
         <MetricCard icon={CheckCircle2} label="อนุมัติแล้ว" value={metrics.approved} color="green" />
-        <MetricCard icon={AlertTriangle} label="ภายใน 7 วัน" value={metrics.upcomingWithin7d} color="blue" />
+        <MetricCard icon={AlertTriangle} label="ยกเลิกแล้ว" value={metrics.cancelled} color="blue" />
       </div>
 
       {/* Additional Metrics */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
         <MiniStat label="ขอเลื่อนนัด" value={metrics.reschedule_requested} />
         <MiniStat label="ถูกปฏิเสธ" value={metrics.rejected} />
-        <MiniStat label="ยกเลิก" value={metrics.cancelled} />
         <MiniStat label="หมดอายุ" value={metrics.expired} />
       </div>
 

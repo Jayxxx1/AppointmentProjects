@@ -73,6 +73,8 @@ export default function AppointmentsPage() {
         return 'ปฏิเสธแล้ว';
       case 'pending':
         return 'รอการยืนยัน';
+      case 'reschedule_requested':
+        return 'ขอเลื่อนนัด';
       default:
         return status;
     }
@@ -99,13 +101,13 @@ export default function AppointmentsPage() {
   return (
     <div className="relative min-h-screen">
       <div className="absolute inset-0 bg-[url(./bg/bg.webp)] bg-cover bg-center bg-no-repeat bg-fixed blur-sm"></div>
-      <div className="relative z-10 min-h-screen p-4 md:p-6 lg:p-8 flex flex-col items-center">
+      <div className="relative z-10 min-h-[60vh] p-4 md:p-6 lg:p-8 flex flex-col items-center">
         {appointments.length === 0 ? (
           <div className="text-center w-full mt-20">
             <div className="bg-white/95 rounded-3xl shadow-2xl p-12 max-w-md mx-auto transform hover:scale-105 transition-all duration-300">
-              <div className="relative mb-8">
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-red-300 rounded-full blur-2xl opacity-100 animate-pulse"></div>
-                <AiFillCalendar className="text-white rounded-2xl w-21 h-21 text-8xl text-gray-300 mx-auto relative z-10 animate-bounce" />
+              <div className="relative mb-8 flex justify-center">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-red-300 rounded-full blur-2xl opacity-80 animate-pulse"></div>
+                <AiFillCalendar className="text-white rounded-2xl w-20 h-20 sm:w-24 sm:h-24 text-6xl sm:text-8xl text-gray-300 mx-auto relative z-10 animate-bounce" />
               </div>
               <h1 className="text-3xl font-bold mb-4 bg-gradient-to-r from-gray-700 to-gray-900 bg-clip-text text-transparent">
                 คุณยังไม่มีนัดหมาย
@@ -124,13 +126,13 @@ export default function AppointmentsPage() {
             </div>
           </div>
         ) : (
-          <div className="max-w-6xl w-full mx-auto">
+          <div className="max-w-6xl w-full mx-auto px-2 sm:px-4">
             <div className="bg-white/95 rounded-2xl shadow-xl p-6 mb-8 border border-gray-200/50">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
                   <div className="relative">
                     <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full blur-lg opacity-30 animate-pulse"></div>
-              <img src="./logo/logo2.png" alt="Logo" className="w-16 h-12 relative z-10 drop-shadow-lg" />
+                    <img src="./logo/logo2.png" alt="Logo" className="w-16 h-12 relative z-10 drop-shadow-lg" />
                   </div>
                   <div className="ml-4">
                     <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-700 to-gray-900 bg-clip-text text-transparent">
@@ -162,7 +164,7 @@ export default function AppointmentsPage() {
                 </div>
               </div>
             </div>
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {appointments.map((appointment, index) => (
                 <div
                   key={appointment._id}
@@ -219,21 +221,7 @@ export default function AppointmentsPage() {
           </div>
         )}
       </div>
-      <style jsx>{`
-        @keyframes slideInUp {
-          from {
-            opacity: 0;
-            transform: translateY(30px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        .animate-slideInUp {
-          animation: slideInUp 0.6s ease-out forwards;
-        }
-      `}</style>
+      {/* animations moved to global CSS */}
     </div>
   );
 }

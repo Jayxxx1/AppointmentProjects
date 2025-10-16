@@ -310,8 +310,8 @@ export default function ProjectDetail() {
   }
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 overflow-hidden">
-      <div className="absolute inset-0 opacity-5">
+    <div className="relative min-h-[60vh] bg-gradient-to-br from-blue-50 via-white to-indigo-50 overflow-hidden">
+    <div className="absolute inset-0 opacity-5 pointer-events-none">
         <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
           <defs>
             <pattern id="project-pattern" width="20" height="20" patternUnits="userSpaceOnUse">
@@ -405,7 +405,7 @@ export default function ProjectDetail() {
                     const sizeKB = a.size ? Math.max(1, Math.round(a.size / 1024)) : null;
                     const created = a.createdAt ? new Date(a.createdAt) : null;
                     return (
-                      <li key={a._id} className="py-3 flex items-center justify-between">
+                      <li key={a._id} className="py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                         <div className="min-w-0">
                           <div className="font-medium text-gray-800 truncate">{a.originalName}</div>
                           <div className="text-xs text-gray-500">
@@ -414,7 +414,9 @@ export default function ProjectDetail() {
                             {created ? ` • อัปโหลด ${created.toLocaleString("th-TH")}` : ""}
                           </div>
                         </div>
-                        <button onClick={() => onDownload(a)} className="px-3 py-2 text-sm rounded-lg bg-gradient-to-r from-gray-100 to-gray-200 hover:from-blue-500 hover:to-purple-500 hover:text-white transition-colors">ดาวน์โหลด</button>
+                        <div className="w-full sm:w-auto">
+                          <button onClick={() => onDownload(a)} className="px-3 py-2 text-sm rounded-lg bg-gradient-to-r from-blue-500 to-purple-500 text-white w-full sm:w-auto">ดาวน์โหลด</button>
+                        </div>
                       </li>
                     );
                   })}

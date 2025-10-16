@@ -19,6 +19,40 @@ const getRelevantEmails = (populatedAppointment) => {
 
 export const runReminderWorker = async () => {
     const now = new Date();
+    // 1) Sweep expired follow-up appointments (created by advisor) and mark as cancelled/expired
+    try {
+        const expiredFollowUps = await Appointment.find({
+            status: 'pending',
+            followUpExpiresAt: { $lt: now },
+            // optional: only those that are follow-ups (isNextAppointment true or previousAppointment set)
+            $or: [ { isNextAppointment: true }, { previousAppointment: { $exists: true, $ne: null } } ]
+        }).populate({ path: 'project', populate: { path: 'advisor members' } }).populate('createBy');
+
+        if (expiredFollowUps && expiredFollowUps.length > 0) {
+            console.log(`Found ${expiredFollowUps.length} expired follow-up(s). Marking as cancelled.`);
+            for (const ap of expiredFollowUps) {
+                try {
+                    ap.status = 'cancelled';
+                    // keep a reason to indicate auto-expiry
+                    ap.reason = ap.reason || 'Follow-up expired (no student approval within allowed window)';
+                    await ap.save();
+
+                    // notify relevant emails
+                    const allEmails = getRelevantEmails(ap);
+                    if (allEmails.length > 0) {
+                        const headline = 'นัดหมายต่อเนื่องหมดเวลา';
+                        const message = `นัดหมายต่อเนื่อง "${ap.title}" ได้หมดเวลาการตอบรับแล้ว และถูกยกเลิกโดยอัตโนมัติ`;
+                        const html = renderAppointmentEmail({ appointment: ap, headline, message });
+                        await sendEmail({ to: allEmails, subject: `[แจ้งเตือน] นัดหมายหมดเวลา: ${ap.title}`, html });
+                    }
+                } catch (e) {
+                    console.error('Failed to mark expired follow-up as cancelled for', ap._id, e);
+                }
+            }
+        }
+    } catch (e) {
+        console.error('Error sweeping expired follow-ups', e);
+    }
     // Find appointments that are approved, not yet reminded, and starting in the next 30-35 minutes
     const soon = new Date(now.getTime() + 35 * 60 * 1000);
 

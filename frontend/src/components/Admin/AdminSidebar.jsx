@@ -14,6 +14,9 @@ export default function AdminSidebar({ isSidebarOpen, toggleSidebar }) {
     <>
       {/* Mobile sidebar */}
       <aside
+        id="admin-sidebar-mobile"
+        role="navigation"
+        aria-label="Admin mobile navigation"
         className={`fixed top-0 left-0 min-h-screen bg-white/95 backdrop-blur-xl border-r border-gray-200/50 shadow-2xl z-40 flex flex-col transition-transform duration-300 ease-in-out w-72 md:hidden ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
         <div className="flex items-center p-6 border-b border-gray-200/50 justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
@@ -30,7 +33,7 @@ export default function AdminSidebar({ isSidebarOpen, toggleSidebar }) {
             </div>
           </Link>
         </div>
-        <nav className="flex-grow mt-6 px-3 overflow-y-auto">
+        <nav className="flex-grow mt-6 px-3 overflow-y-auto" aria-label="Admin mobile menu">
           <ul className="space-y-2">
             {navItems.map((item) => (
               <li key={item.name} className="transform transition-all duration-200">
@@ -57,6 +60,9 @@ export default function AdminSidebar({ isSidebarOpen, toggleSidebar }) {
 
       {/* Desktop sidebar */}
       <aside
+        id="admin-sidebar-desktop"
+        role="navigation"
+        aria-label="Admin sidebar"
         className={`hidden md:flex flex-col flex-shrink-0 min-h-screen bg-white/95 backdrop-blur-xl border-r border-gray-200/50 shadow-xl z-40 transition-[width] duration-700 ease-in-out fixed top-0 left-0 ${isSidebarOpen ? 'w-72' : 'w-20'}`}
       >
         <div className={`flex items-center border-b border-gray-200/50 bg-gradient-to-r from-blue-50 to-indigo-50 transition-[padding] duration-700 ${isSidebarOpen ? 'p-6' : 'p-4 justify-center'}`}>
@@ -74,7 +80,7 @@ export default function AdminSidebar({ isSidebarOpen, toggleSidebar }) {
             )}
           </Link>
         </div>
-        <nav className="flex-grow mt-6 px-3 overflow-y-auto">
+        <nav className="flex-grow mt-6 px-3 overflow-y-auto" aria-label="Admin menu">
           <ul className="space-y-2">
             {navItems.map((item) => (
               <li key={item.name} className="transform transition-all duration-200">

@@ -69,7 +69,7 @@ export default function ProjectsPage() {
   };
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+  <div className="relative min-h-[60vh] bg-gradient-to-br from-blue-50 via-white to-indigo-50">
       {/* BG image layer */}
       <div
         aria-hidden="true"
@@ -81,7 +81,7 @@ export default function ProjectsPage() {
       />
       <div aria-hidden="true" className="absolute inset-0 -z-10 bg-white/70 backdrop-blur-sm" />
 
-      <div className="relative z-10 max-w-6xl w-full mx-auto px-5 sm:px-8 py-10">
+  <div className="relative z-10 max-w-6xl w-full mx-auto px-4 sm:px-6 py-8">
         {/* Header */}
         <div className="rounded-t-2xl shadow-xl overflow-hidden">
           <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white px-6 sm:px-8 py-5">
@@ -152,7 +152,7 @@ export default function ProjectsPage() {
                 <div className="mx-auto w-full max-w-md bg-white/95 rounded-2xl border border-gray-200/60 shadow-xl p-8">
                   <div className="relative mb-6">
                     <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full blur-2xl opacity-30 animate-pulse"></div>
-                    <Users className="w-14 h-14 text-gray-300 mx-auto relative z-10" />
+                    <Users className="w-12 h-12 sm:w-14 sm:h-14 text-gray-300 mx-auto relative z-10" />
                   </div>
                   <h3 className="text-2xl font-bold text-gray-800 mb-2">
                     {isStudent ? 'ยังไม่มีโปรเจค' : 'ยังไม่มีโปรเจคที่ปรึกษา'}

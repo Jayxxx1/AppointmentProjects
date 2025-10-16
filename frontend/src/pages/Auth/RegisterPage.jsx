@@ -53,10 +53,9 @@ export default function RegisterPage() {
 }
   return (
     <div className="bg-[url(./bg/bg.webp)] bg-cover bg-center bg-no-repeat min-h-screen flex items-center justify-center p-4">
-      <div className="w-full max-w-5xl bg-white/40 backdrop-blur-md rounded-3xl shadow-xl overflow-hidden p-0
-            flex flex-col lg:flex-row items-stretch">
+  <div className="w-full max-w-5xl bg-white/40 backdrop-blur-md rounded-3xl shadow-xl overflow-hidden p-0 flex flex-col lg:flex-row items-stretch">
         {/* Left side - Image Card (now part of the combined card) */}
-        <div className="w-full lg:w-1/2 flex items-center justify-center p-8 lg:border-l lg:border-white/30">
+  <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-8 lg:border-l lg:border-white/30">
           <div className="text-center text-gray-700">
             <div className="text-6xl mb-4">📅</div>
             <div className="text-2xl font-semibold">Appointment System</div>
@@ -68,7 +67,7 @@ export default function RegisterPage() {
         </div>
 
         {/* Right side - Register Form (now part of the combined card) */}
-        <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
+        <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-8">
           <div className="max-w-md w-full space-y-8">
             {/* Header */}
             <div className="text-center">

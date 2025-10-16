@@ -49,6 +49,8 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar }) {
           ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
           md:hidden
         `}
+        id="app-sidebar"
+        role="navigation"
       >
         {/* Mobile Sidebar Header */}
         <div className="flex items-center p-6 border-b border-gray-200/50 justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
@@ -106,6 +108,8 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar }) {
           transition-[width] duration-700 ease-in-out fixed top-0 left-0
           ${isSidebarOpen ? 'w-72' : 'w-20'}
         `}
+        id="app-sidebar-desktop"
+        role="navigation"
       >
         {/* Desktop Sidebar Header */}
         <div className={`flex items-center  bg-gradient-to-r transition-[padding] duration-700
@@ -168,36 +172,7 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar }) {
         </nav>
       </aside>
 
-      <style jsx>{`
-        @keyframes fade-in-delayed {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        
-        @keyframes slide-in-delayed {
-          from { opacity: 0; transform: translateX(-20px); }
-          to { opacity: 1; transform: translateX(0); }
-        }
-        
-        @keyframes bounce-icon {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-5px); }
-        }
-
-        .animate-fade-in-delayed {
-          animation: fade-in-delayed 0.5s ease-out 0.2s forwards;
-          animation-fill-mode: both;
-        }
-        
-        .animate-slide-in-delayed {
-          animation: slide-in-delayed 0.4s ease-out 0.3s forwards;
-          animation-fill-mode: both;
-        }
-
-        .animate-bounce-icon {
-          animation: bounce-icon 1s infinite;
-        }
-      `}</style>
+      {/* animation classes moved to global CSS (src/index.css) */}
     </>
   );
 }
